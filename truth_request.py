@@ -5,9 +5,20 @@ import requests
 import numpy as np
 import datetime
 from datetime import timedelta
+import orekit
+from orekit.pyhelpers import  setup_orekit_curdir
 import auth
-import truth_analysis
+import truth_analysis as ta
 from dateutil.parser import parse as date_parse
+import statistics
+from itertools import zip_longest
+from utilities.aws_helper import AwsHelper
+from utilities.api import Api
+from utilities.od_logging import OptionalLog
+import re
+import time
+import shutil
+from matplotlib import pyplot as plt
 
 
 def id_data(leo_id):
@@ -108,8 +119,7 @@ class RicCovariancesContainer():
     
     def __init__(self,covariance):
         self.covariance = covariance
-        
-        
+               
 def Ric_propagation_dict_to_container(ric_prop_dict):
     """Takes a single RIC propagation json dictionary and returns a RicCovariancesContainer object."""
     
@@ -164,3 +174,216 @@ def extract_norm_error(norm_errors_dict, coord_ind):
         error_list.append(norm_errors_dict[i]['vals'][coord_ind])
         
     return error_list
+
+def z_score(d,MAD):
+    return 0.6745*d/MAD
+
+def cull_outliers(arr):
+    """Function for culling outliers based on their mean squared distance from the median."""
+    threshold = 3.0
+
+    arr = np.array(arr)
+
+    # Strip nans
+    arr = arr[~np.isnan(arr)]
+
+    diffs = np.sqrt((arr - np.median(arr))**2)
+
+    MAD = np.median(diffs)
+
+    return [y for x,y in zip(diffs,arr) if z_score(x,MAD) < threshold]
+
+def extract_std_from_error_distributions(err_collection):
+    """Takes a collection of error distributions and returns the standard deviation at each time step."""
+    stdevs = []
+    for i in range(len(err_collection)):
+        stdevs.append(statistics.pstdev(cull_outliers(err_collection[i])))
+    return stdevs
+
+def aws_init(logger=None):
+    """Initialize aws"""
+    # Initialize API connection object
+    api_client = Api.get_client(logger=logger)
+
+    # Initialize AWS helper functions
+    aws_helper = AwsHelper(logger=logger)
+    
+    return api_client, aws_helper 
+
+def set_up_truth_directory_for_target(leolabs_id):
+    """Prepares a local directory for storing ILRS truth files for particular ILRS target."""
+    try:
+        shutil.rmtree('truth/' + str(leolabs_id)) # Remove target's directory if it already exists
+    except FileNotFoundError:
+        pass
+
+    base_truth_directory = 'truth/'
+    try:
+        os.mkdir(base_truth_directory)
+    except OSError:
+        pass
+
+    truth_directory = base_truth_directory + str(leolabs_id)
+    try:
+        os.mkdir(truth_directory)
+    except OSError:
+        pass
+
+    return truth_directory
+
+def get_truth_file_list(epoch_date, norad_id, num_days):
+    """Builds list of S3 truth files for the current object that match the date range of interest."""
+    
+    epoch_date_in_dt = datetime.datetime(epoch_date[0],epoch_date[1],epoch_date[2]) # we need this date in datetime
+    
+    def string_from_date(dt):
+        return str(dt.year)[-2:] + '%02d' % (dt.month,) + '%02d' % (dt.day,)
+
+    dates_of_interest = [(epoch_date_in_dt - timedelta(days=i)) for i in range(num_days)]
+    strings_of_interest = [string_from_date(d) for d in dates_of_interest]
+
+    regex_date_matcher = re.compile(r"^.*_(\d{6})_.*\.\w{3}")
+    filenames_of_interest = []
+
+    for name in aws_helper.get_list_of_files_s3('leolabs-calibration-sources-test', 'ilrs/'+str(norad_id)): # at this stage no other bucket is required
+        try:
+            date_component = regex_date_matcher.match(name).group(1)
+
+            if date_component in strings_of_interest:
+                filenames_of_interest.append(name)
+
+        except AttributeError:
+            pass
+
+    return filenames_of_interest
+
+def download_truth_files(filenames, truth_directory):
+    """Downloads truth files from S3 for the current truth target."""
+
+    def date_from_string(dt_string):
+        return datetime(2000+int(dt_string[0:2]), int(dt_string[2:4]), int(dt_string[4:6]))
+
+    regex_date_matcher = re.compile(r"^.*_(\d{6})_.*\.\w{3}")
+    regex_file_matcher = re.compile(r"^.*/.*/(.*)$")
+
+    num_new_files = 0
+    for name in filenames:
+        filename = regex_file_matcher.match(name).group(1)
+
+        if not os.path.isfile(truth_directory + '/' + filename):
+            aws_helper.download_s3('leolabs-calibration-sources-test', name, truth_directory + '/' + filename)
+            num_new_files += 1
+
+    print('info', 'Syncing ILRS truth data from S3 ({} files downloaded)'.format(num_new_files))
+
+def dwld_data_for_target(leolabs_id,epoch_date,num_days):
+    """Downloads data for a particular target."""
+    norad_id = id_data(leolabs_id)["norad_id"] # look up norad id of target
+    trth_dir = set_up_truth_directory_for_target(leolabs_id) # create directory for target
+    trth_flnms = get_truth_file_list(epoch_date, norad_id, num_days) # collect all filenames to be downloaded
+    download_truth_files(trth_flnms,trth_dir) # download all files
+        
+def dwld_data_for_all_targets(target_list,epoch,num_days):
+    """Downloads data for all targets."""
+    for target in target_list:
+        dwld_data_for_target(target,epoch,num_days)
+        
+def collect_all_states(ILRS_target_list, epoch, dates_back_from_epoch):
+    """Collects all states for a list of ILRS targets and a specified date range going back from the epoch."""
+    tot_state_arr = np.empty(3,dtype='<U32')
+    
+    for target in ILRS_target_list:
+        state_arr = states_available_x_days_from_epoch(target,epoch,dates_back_from_epoch)
+        if (state_arr is not None):
+            tot_state_arr = np.vstack((tot_state_arr,state_arr.astype('<U32')))
+        else:
+            pass
+        
+    return tot_state_arr[1:]
+
+def state_error(object_id,state_id,epoch,timestep = 150, plotting = False):
+    """Creates a truth object from a state and runs truth analysis on it, returning the errors."""
+    # Initializing object
+    id_data_TO = id_data(object_id) # Id data of a truth object
+    
+    start_time_str, end_time_str = propagation_dates_from_epoch(epoch)
+    
+    
+    propagations_ST = propagation_of_state(object_id,state_id,start_time_str,end_time_str,timestep) # propagate the state and collect the propagations
+    propagations_ST_list = propagations_list(propagations_ST) # put the propagations in a container
+    ric_covariances_ST = RIC_covariance_of_propagations(object_id,state_id,start_time_str,end_time_str,timestep) # find the covariances of the propagations in the RIC frame
+    ric_covariances_ST_list = RIC_Covariances_list(ric_covariances_ST) # put the RIC covariances in a container
+    TO = ta.TruthAnalysis(id_data_TO,propagations_ST_list,ric_covariances_ST_list) # Initialize a Truth Object
+    
+    try: # handling the exception that there are no ILRS truth files to download from S3
+        norm_errors_dict, dist_list = TO.ilrs_truth_analysis() # Run Truth Analysis on the TO
+        epoch_Offset = extract_epochOffset(norm_errors_dict) # parse epoch Offset
+        r_err = extract_norm_error(norm_errors_dict,0) # parse position errors
+        i_err = extract_norm_error(norm_errors_dict,1)
+        c_err = extract_norm_error(norm_errors_dict,2)
+
+        if plotting:
+            plt.figure(figsize=(8,8))
+            plt.title(f"RIC Position Error for {object_id} @ epoch {epoch}")
+            plt.plot(epoch_Offset,r_err,'g',label='radial')
+            plt.plot(epoch_Offset,i_err,'r',label='in-track')
+            plt.plot(epoch_Offset,c_err,'b',label='cross-track')
+            plt.legend(loc='upper right')
+            plt.xlabel('Seconds from estimation epoch')
+            plt.ylabel('Error')
+            plt.show()
+        return epoch_Offset, r_err, i_err, c_err
+    except ValueError:
+        return None, None, None, None
+    
+def collections_of_truth_state_errors(ILRS_target_list, epoch, days_from_epoch):
+    """Collects all errors for a given list of ILRS targets and dates and returns them in the form of distributions."""
+    
+    state_array = collect_all_states(ILRS_target_list, epoch, days_from_epoch) # collecting all states for the specified date range
+    
+    num_of_states = state_array.shape[0]
+    
+    print("Total number of states = ", num_of_states)
+
+    r_err_list = []
+    i_err_list = []
+    c_err_list = []
+    Ep_Offset_list = []
+
+    counter = 0
+    for i in range(num_of_states): # perform truth analysis on each state and store the errors
+        obj_id = state_array[i][0]
+        state_id = state_array[i][1]
+        timestamp = state_array[i][2]
+
+        epoch_Offset, r_err, i_err, c_err = state_error(obj_id,state_id,timestamp)
+        counter += 1
+        print(f"state {counter}/{num_of_states} done!")
+        
+        if (r_err is not None):
+            Ep_Offset_list.append(epoch_Offset)
+            r_err_list.append(r_err)
+            i_err_list.append(i_err)
+            c_err_list.append(c_err)
+
+        else: 
+            pass   
+        # convert the lists of errors with len = number_of_time_steps to lists of lists of the same length 
+        # but each entry is a list with all the errors of that time step.
+        r_err_collection = list(zip_longest(*r_err_list)) 
+        i_err_collection = list(zip_longest(*i_err_list))
+        c_err_collection = list(zip_longest(*c_err_list))
+    
+    print("Epoch_Offset_length =",len(Ep_Offset_list))
+    print("r_err_length = ",len(r_err_collection))
+    print("r_err[0]_length = ",len(r_err_collection[0]))
+   
+    return Ep_Offset_list[0], r_err_collection, i_err_collection, c_err_collection
+
+# Initialize orekit
+orekit_vm = orekit.initVM()
+setup_orekit_curdir("/Users/gkeramidas/Projects/learning/leolabs-config-data-dynamic/")
+
+# Initialize aws
+api_client, aws_helper = aws_init()
+
