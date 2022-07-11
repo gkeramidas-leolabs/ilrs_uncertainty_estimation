@@ -9,10 +9,6 @@ ILRS_targets = ['L5011', 'L3059', 'L335', 'L2486', 'L4884', 'L1471', 'L5429', 'L
 epoch = [2022,5,15]
 num_days = 4
 
-
-# Download the data from S3
-#tr.dwld_data_for_all_targets(ILRS_targets,epoch,num_days)
-
 # Perform truth analysis
 Ep_Offset, r_err_coll, i_err_coll, c_err_coll = tr.collections_of_truth_state_errors(ILRS_targets,epoch,num_days)
 
