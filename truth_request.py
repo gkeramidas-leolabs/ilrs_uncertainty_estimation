@@ -239,7 +239,7 @@ def get_truth_file_list(epoch_date, norad_id, num_days):
     def string_from_date(dt):
         return str(dt.year)[-2:] + '%02d' % (dt.month,) + '%02d' % (dt.day,)
 
-    dates_of_interest = [(epoch_date_in_dt - timedelta(days=i)) for i in range(num_days)]
+    dates_of_interest = [(epoch_date_in_dt - timedelta(days=i)) for i in range(num_days+5)] # go back 5 days from the earliest state
     strings_of_interest = [string_from_date(d) for d in dates_of_interest]
 
     regex_date_matcher = re.compile(r"^.*_(\d{6})_.*\.\w{3}")
