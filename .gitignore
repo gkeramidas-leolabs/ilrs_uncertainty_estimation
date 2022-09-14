@@ -4,4 +4,4 @@ leolabs-config-data-cached/
 leolabs-config-data-dynamic/
 *.json
 *.txt
-
+truth/**
