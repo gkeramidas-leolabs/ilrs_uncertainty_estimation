@@ -3,4 +3,4 @@ __pycache__
 leolabs-config-data-cached/
 leolabs-config-data-dynamic/
 *.json
-
+*.txt
