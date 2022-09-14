@@ -212,10 +212,10 @@ def aws_init(logger=None):
 
 def set_up_truth_directory_for_target(leolabs_id):
     """Prepares a local directory for storing ILRS truth files for particular ILRS target."""
-    try:
-        shutil.rmtree('truth/' + str(leolabs_id)) # Remove target's directory if it already exists
-    except FileNotFoundError:
-        pass
+    #try:
+    #    shutil.rmtree('truth/' + str(leolabs_id)) # Remove target's directory if it already exists
+    #except FileNotFoundError:
+    #    pass
 
     base_truth_directory = 'truth/'
     try:
