@@ -372,6 +372,21 @@ def state_error(object_id,state_id,epoch,timestep = 150, plotting = False):
     except ValueError:
         return None, None, None, None
     
+async def async_state_requests(object_id,state_id,epoch,timestep = 150):
+    """Group all API requests needed for state error estimation."""
+    # Initializing object
+    id_data_TO = await async_id_data(object_id) # Id data of a truth object
+    
+    start_time_str, end_time_str = propagation_dates_from_epoch(epoch)
+    
+    
+    propagations_ST = await async_propagation_of_state(object_id,state_id,start_time_str,end_time_str,timestep) # propagate the state and collect the propagations
+    propagations_ST_list = propagations_list(propagations_ST) # put the propagations in a container
+    ric_covariances_ST = await async_RIC_covariance_of_propagations(object_id,state_id,start_time_str,end_time_str,timestep) # find the covariances of the propagations in the RIC frame
+    ric_covariances_ST_list = RIC_Covariances_list(ric_covariances_ST) # put the RIC covariances in a container
+    TO = ta.TruthAnalysis(id_data_TO,propagations_ST_list,ric_covariances_ST_list) # Initialize a Truth Object
+    return TO
+    
 def collections_of_truth_state_errors(ILRS_target_list, epoch, days_from_epoch):
     """Collects all errors for a given list of ILRS targets and dates and returns them in the form of distributions."""
     
