@@ -114,6 +114,15 @@ def RIC_covariance_of_propagations(leo_id, state_id, start_time, end_time, times
     
     return prop_with_ric_response.json()["propagation"]
 
+async def async_RIC_covariance_of_propagations(leo_id, state_id, start_time, end_time, timestep):
+    """Asynchonously pull the RIC covariances out of the propagations """ 
+    
+    prop_with_ric_url = "".join([auth.api_url, '/catalog/objects/',leo_id,'/states/',state_id,'/propagations?startTime=',start_time,'&endTime=',end_time,'&timestep=',str(timestep),'&frame=RIC'])
+    
+    prop_with_ric_response = await asyncio.to_thread(request_response,prop_with_ric_url)
+    
+    return prop_with_ric_response.json()["propagation"]
+
 def propagation_of_state(leo_id, state_id, start_time, end_time, timestep):
     """Request state propagations between a start date and an end date and with certain timestep."""
     
