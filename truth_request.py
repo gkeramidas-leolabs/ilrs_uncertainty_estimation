@@ -41,6 +41,19 @@ def request_response(object_url):
     request_response = requests.get(object_url,headers=auth.headers)
     return request_response
 
+async def async_id_data(leo_id):
+    object_url = "".join([auth.api_url, '/catalog/objects/',leo_id])
+    object_response = await asyncio.to_thread(request_response,object_url)
+    leolabs_id = object_response.json()["catalogNumber"] 
+    norad_id = object_response.json()["noradCatalogNumber"]
+    name = object_response.json()["name"]
+    
+    id_dict = {}
+    id_dict['leolabs_id'] = leolabs_id
+    id_dict['norad_id'] = norad_id
+    id_dict['object_name'] = name
+    return id_dict
+
 def propagation_dates_from_epoch(epoch):
     """Function handed an epoch (as a list) and returning start and end days, 1 day away from epoch"""
     
