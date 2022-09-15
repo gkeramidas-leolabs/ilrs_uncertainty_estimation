@@ -123,6 +123,15 @@ def propagation_of_state(leo_id, state_id, start_time, end_time, timestep):
     
     return propagation_response.json()["propagation"]
 
+async def async_propagation_of_state(leo_id, state_id, start_time, end_time, timestep):
+    """Asynchronous request of state propagations between a start date and an end date and with certain timestep."""
+    
+    propagation_url = "".join([auth.api_url, '/catalog/objects/',leo_id,'/states/',state_id,'/propagations?startTime=',start_time,'&endTime=',end_time,'&timestep=',str(timestep)])
+    
+    propagation_response = await asyncio.to_thread(request_response,propagation_url)
+    
+    return propagation_response.json()["propagation"]
+
 class PropagationsContainer():
     """Convenience container for propagations"""
     
