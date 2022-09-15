@@ -386,6 +386,19 @@ async def async_state_requests(object_id,state_id,epoch,timestep = 150):
     ric_covariances_ST_list = RIC_Covariances_list(ric_covariances_ST) # put the RIC covariances in a container
     TO = ta.TruthAnalysis(id_data_TO,propagations_ST_list,ric_covariances_ST_list) # Initialize a Truth Object
     return TO
+
+def truth_analysis_errors(truth_object):
+    """Second part of original state_error function. Designed to not contain API requests."""
+    try: # handling the exception that there are no ILRS truth files to download from S3
+        norm_errors_dict, dist_list = truth_object.ilrs_truth_analysis() # Run Truth Analysis on the TO
+        epoch_Offset = extract_epochOffset(norm_errors_dict) # parse epoch Offset
+        r_err = extract_norm_error(norm_errors_dict,0) # parse position errors
+        i_err = extract_norm_error(norm_errors_dict,1)
+        c_err = extract_norm_error(norm_errors_dict,2)
+
+        return epoch_Offset, r_err, i_err, c_err
+    except ValueError:
+        return None, None, None, None
     
 def collections_of_truth_state_errors(ILRS_target_list, epoch, days_from_epoch):
     """Collects all errors for a given list of ILRS targets and dates and returns them in the form of distributions."""
