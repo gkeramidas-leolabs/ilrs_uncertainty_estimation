@@ -19,6 +19,7 @@ import re
 import time
 import shutil
 from matplotlib import pyplot as plt
+import asyncio
 
 
 def id_data(leo_id):
@@ -35,6 +36,10 @@ def id_data(leo_id):
     id_dict['norad_id'] = norad_id
     id_dict['object_name'] = name
     return id_dict
+
+def request_response(object_url):
+    request_response = requests.get(object_url,headers=auth.headers)
+    return request_response
 
 def propagation_dates_from_epoch(epoch):
     """Function handed an epoch (as a list) and returning start and end days, 1 day away from epoch"""
