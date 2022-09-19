@@ -34,7 +34,7 @@ async def batch_requests(state_array,max_requests=100):
     
     TOS = []
     for i in range(num_of_chunks+1):
-        if i < (num_of_chunks+1):
+        if i < (num_of_chunks):
             batch_tos = await exp_backoff_async_api_call(state_array, i*max_requests, (i+1)*max_requests,5)
             TOS.append(batch_tos)
         else:
