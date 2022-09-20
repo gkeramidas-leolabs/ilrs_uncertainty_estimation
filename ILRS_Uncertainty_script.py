@@ -9,13 +9,13 @@ orekit_vm = orekit.initVM()
 setup_orekit_curdir("/Users/gkeramidas/Projects/learning/leolabs-config-data-dynamic/")
 
 targets = ['L2486','L3059','L4884','L5011','L2682']
-year_list = [2021,2021,2021,2021,2021,2021,2021,2021,2022,2022,2022,2022,2022]
-month_list = [5,6,7,8,9,10,11,12,1,2,3,4,5]
-day_list = [30,30,30,30,30,30,30,30,30,28,30,30,30]
+year_list = [2022,2022,2022,2022]
+month_list = [6,7,8,9]
+day_list = [30,31,31,18]
 
 for i in range(len(year_list)):
     for leolabs_id in targets:
-        filepath = "/Users/gkeramidas/Projects/learning/"+str(leolabs_id)+"-uncertainties-LN.txt"
+        filepath = "/Users/gkeramidas/Projects/learning/"+str(leolabs_id)+"-uncertainties.txt"
         end_epoch = [year_list[i],month_list[i],day_list[i]] # epoch from which we will go back certain number of days
         length_of_search = 30
         prov1 = "hts"
@@ -47,24 +47,12 @@ for i in range(len(year_list)):
             print(ephem.name)
         dX1, dX2, dY1, dY2, dZ1, dZ2 = unc.compare_eph(ephemerides, base_year, base_month, base_day, length_of_search, prov1, prov2)
 
-        #uncX1 = unc.final_uncertainty(dX1)
-        uncX1 = unc.log_normal_right_confidence_interval(dX1)
-        #print("dX" + prov1 + "=",uncX1)
-        #uncX2 = unc.final_uncertainty(dX2)
-        uncX2 = unc.log_normal_right_confidence_interval(dX2)
-        #print("dX" + prov2 + "=",uncX2)
-        #uncY1 = unc.final_uncertainty(dY1)
-        uncY1 = unc.log_normal_right_confidence_interval(dY1)
-        #print("dY" + prov1 + "=",uncY1)
-        #uncY2 = unc.final_uncertainty(dY2)
-        uncY2 = unc.log_normal_right_confidence_interval(dY2)
-        #print("dY" + prov2 + "=",uncY2)
-        #uncZ1 = unc.final_uncertainty(dZ1)
-        uncZ1 = unc.log_normal_right_confidence_interval(dZ1)
-        #print("dZ" + prov1 + "=",uncZ1)
-        #uncZ2 = unc.final_uncertainty(dZ2)
-        uncZ2 = unc.log_normal_right_confidence_interval(dZ2)
-        #print("dZ" + prov2 + "=",uncZ2)
+        uncX1 = unc.final_uncertainty(dX1)
+        uncX2 = unc.final_uncertainty(dX2)
+        uncY1 = unc.final_uncertainty(dY1)
+        uncY2 = unc.final_uncertainty(dY2)
+        uncZ1 = unc.final_uncertainty(dZ1)
+        uncZ2 = unc.final_uncertainty(dZ2)
         print("Finished month for target")
         with open(filepath,"a") as f:
             f.write(datestring +"\t"+str(uncX1)+"\t"+str(uncY1)+"\t"+str(uncZ1)+"\t"+str(uncX2)+"\t"+str(uncY2)+"\t"+str(uncZ2)+"\n")
