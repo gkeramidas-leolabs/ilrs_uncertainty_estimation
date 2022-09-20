@@ -4,7 +4,7 @@ import orekit
 from orekit.pyhelpers import  setup_orekit_curdir
 from matplotlib import pyplot as plt
 import asyncio
-
+from itertools import zip_longest
 
 # Inputs
 ILRS_targets = ['L5011', 'L3059', 'L2486', 'L4884', 'L1471', 'L5429', 'L3972', 'L3969', 'L2669', 'L2682']
@@ -36,10 +36,10 @@ async def batch_requests(state_array,max_requests=100):
     for i in range(num_of_chunks+1):
         if i < (num_of_chunks):
             batch_tos = await exp_backoff_async_api_call(state_array, i*max_requests, (i+1)*max_requests,5)
-            TOS.append(batch_tos)
+            TOS.extend(batch_tos)
         else:
             batch_tos = await exp_backoff_async_api_call(state_array, i*max_requests, num_req,5)
-            TOS.append(batch_tos)
+            TOS.extend(batch_tos)
     return TOS
 
 async def main():
