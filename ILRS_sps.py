@@ -13,14 +13,14 @@ setup_orekit_curdir("/Users/gkeramidas/Projects/learning/leolabs-config-data-dyn
 targets = ['L1471','L5429','L3972','L3969','L2669'] # single-providers
 #targets = ['L2486','L3059','L4884','L5011','L2682'] # multi-providers
 #targets = ['L5011']
-year_list = [2021,2021,2021,2021,2021,2021,2021,2021,2022,2022,2022,2022,2022]
-month_list = [5,6,7,8,9,10,11,12,1,2,3,4,5]
-day_list = [30,30,30,30,30,30,30,30,30,28,30,30,30]
+year_list = [2022,2022,2022,2022]
+month_list = [6,7,8,9]
+day_list = [30,31,31,18]
 
-for i in range(len(year_list)-6):
+for i in range(len(year_list)):
     for leolabs_id in targets:
         filepath = "/Users/gkeramidas/Projects/learning/"+str(leolabs_id)+"-SP-uncertainties.txt"
-        end_epoch = [year_list[i+6],month_list[i+6],day_list[i+6]] # epoch from which we will go back certain number of days
+        end_epoch = [year_list[i],month_list[i],day_list[i]] # epoch from which we will go back certain number of days
         length_of_search = 30
         prov_list = ["esa","cne"]
         preferred_prov = "esa"
