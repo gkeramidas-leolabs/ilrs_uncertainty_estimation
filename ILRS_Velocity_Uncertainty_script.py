@@ -15,7 +15,7 @@ day_list = [30,31,31,18]
 
 for i in range(len(year_list)):
     for leolabs_id in targets:
-        filepath = "/Users/gkeramidas/Projects/learning/"+str(leolabs_id)+"-velocity-ßuncertainties.txt"
+        filepath = "/Users/gkeramidas/Projects/learning/"+str(leolabs_id)+"-velocity-uncertainties.txt"
         end_epoch = [year_list[i],month_list[i],day_list[i]] # epoch from which we will go back certain number of days
         length_of_search = 30
         prov1 = "hts"
