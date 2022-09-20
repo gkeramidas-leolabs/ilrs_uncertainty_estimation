@@ -42,12 +42,12 @@ async def batch_requests(state_array,max_requests=100):
             TOS.append(batch_tos)
     return TOS
 
-def main():
+async def main():
 
     # Download files
     tr.dwld_data_for_all_targets(ILRS_targets[:],epoch,num_days)
 
-    state_array = tr.collect_all_states(ILRS_target_list, epoch, days_from_epoch) # collecting all states for the specified date range
+    state_array = tr.collect_all_states(ILRS_targets, epoch, num_days) # collecting all states for the specified date range
 
     r_err_list = []
     i_err_list = []
@@ -57,7 +57,7 @@ def main():
     TOS = await batch_requests(state_array,100) # Doing all API calls and initializing all truth objects
 
     for i in range(len(TOS)):
-        epoch_Offset, r_err, i_err, c_err = truth_analysis_errors(TOS[i])
+        epoch_Offset, r_err, i_err, c_err = tr.truth_analysis_errors(TOS[i])
 
         if (r_err is not None):
                 Ep_Offset_list.append(epoch_Offset)
@@ -87,4 +87,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
