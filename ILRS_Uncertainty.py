@@ -250,6 +250,40 @@ def single_prov_diff(base_eph, secondary_eph, epoch_unix):
         curr_time += timestep
     return dX,dY,dZ,dR,dI,dC
 
+"""Calculates velocity differences between two ephemerides."""
+def single_prov_vel_diff(base_eph, secondary_eph, epoch_unix):
+    
+    timestep = 150
+    one_day = 24*60*60/timestep
+    
+    dVX = []
+    dVY = []
+    dVZ = []
+    dVR = []
+    dVI = []
+    dVC = []
+    
+    curr_time=0
+    
+    for i in range(int(one_day)):
+        ECI_vel_diff = base_eph.derived_velocity_at_unix_time(epoch_unix+curr_time) - secondary_eph.derived_velocity_at_unix_time(epoch_unix+curr_time) 
+        
+        RTN = eci_to_rtn_rotation_matrix(base_eph.position_at_unix_time(epoch_unix+curr_time),base_eph.derived_velocity_at_unix_time(epoch_unix+curr_time))
+        
+        RIC_vel_diff = np.matmul(RTN,ECI_vel_diff)
+        
+        dVX.append(ECI_vel_diff[0])
+        dVY.append(ECI_vel_diff[1])
+        dVZ.append(ECI_vel_diff[2])
+        
+        dVR.append(RIC_vel_diff[0])
+        dVI.append(RIC_vel_diff[1])
+        dVC.append(RIC_vel_diff[2])
+        
+        curr_time += timestep
+    return dVX,dVY,dVZ,dVR,dVI,dVC
+
+
 """Instantiates tephem objects from their filename."""
 def inst_tephem(directory,file):
     name = str(file)
