@@ -248,10 +248,10 @@ def aws_init(logger=None):
 
 def set_up_truth_directory_for_target(leolabs_id):
     """Prepares a local directory for storing ILRS truth files for particular ILRS target."""
-    #try:
-    #    shutil.rmtree('truth/' + str(leolabs_id)) # Remove target's directory if it already exists
-    #except FileNotFoundError:
-    #    pass
+    try:
+        shutil.rmtree('truth/' + str(leolabs_id)) # Remove target's directory if it already exists
+    except FileNotFoundError:
+        pass
 
     base_truth_directory = 'truth/'
     try:
@@ -281,7 +281,7 @@ def get_truth_file_list(epoch_date, norad_id, num_days):
     regex_date_matcher = re.compile(r"^.*_(\d{6})_.*\.\w{3}")
     filenames_of_interest = []
 
-    for name in aws_helper.get_list_of_files_s3('leolabs-calibration-sources-test', 'ilrs/'+str(norad_id)): # at this stage no other bucket is required
+    for name in aws_helper.get_list_of_files_s3('leolabs-calibration-sources', 'ilrs/'+str(norad_id)): # at this stage no other bucket is required
         try:
             date_component = regex_date_matcher.match(name).group(1)
 
@@ -307,7 +307,8 @@ def download_truth_files(filenames, truth_directory):
         filename = regex_file_matcher.match(name).group(1)
 
         if not os.path.isfile(truth_directory + '/' + filename):
-            aws_helper.download_s3('leolabs-calibration-sources-test', name, truth_directory + '/' + filename)
+            #aws_helper.download_s3('leolabs-calibration-sources-test', name, truth_directory + '/' + filename)
+            aws_helper.download_s3('leolabs-calibration-sources', name, truth_directory + '/' + filename)
             num_new_files += 1
 
     print('info', 'Syncing ILRS truth data from S3 ({} files downloaded)'.format(num_new_files))
