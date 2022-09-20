@@ -460,6 +460,37 @@ def compare_successive_ephems(ephem_list, year, month, day, length, prov_list, p
         n_year,n_month,n_day = next_day(n_year,n_month,n_day)
     return unc_X1day, unc_Y1day, unc_Z1day
 
+"""Compares ephems from 3 consecutive days over a single day."""
+def compare_successive_ephems_velocity(ephem_list, year, month, day, length, prov_list, preferred_prov):
+    n_year = year
+    n_month = month
+    n_day = day
+    
+    unc_VX1day = []
+    unc_VY1day = []
+    unc_VZ1day = []
+    
+    for i in range(length):
+        Eb, E1, _, _ = fetch_consecutive_ephems(ephem_list, n_year, n_month, n_day, prov_list, preferred_prov)
+        try:
+            Eb.name and E1.name 
+        except AttributeError:
+            print("Missing Day")
+            continue # skip the whole day if one ephemeris is missing
+            
+        print("base:",Eb.name)
+        print("one:",E1.name)
+        epoch_unix = calculate_epoch_unix(n_year,n_month,n_day)
+        
+        dVX1,dVY1,dVZ1,dVR1,dVI1,dVC1 = single_prov_vel_diff(Eb.ephem, E1.ephem, epoch_unix)
+        
+        unc_VX1day.append(abs(max_conf_day(dVX1,95)))
+        unc_VY1day.append(abs(max_conf_day(dVY1,95)))
+        unc_VZ1day.append(abs(max_conf_day(dVZ1,95)))
+        
+        n_year,n_month,n_day = next_day(n_year,n_month,n_day)
+    return unc_VX1day, unc_VY1day, unc_VZ1day
+
 
 """Returns intercept from exponential fitting of the error between 3 days."""
 def exp_fit(uncertainty_list):
