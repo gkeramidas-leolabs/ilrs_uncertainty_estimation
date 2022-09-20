@@ -217,6 +217,65 @@ def compare_eph(ephem_list, year, month, day, length, prov1, prov2):
         print("next day:",n_day)
     return prov1_unc_X, prov2_unc_X, prov1_unc_Y, prov2_unc_Y, prov1_unc_Z, prov2_unc_Z
 
+"""Function that compares ephemeris objects from different providers for velocity."""        
+def compare_eph_velocity(ephem_list, year, month, day, length, prov1, prov2):
+    n_year = year
+    n_month = month
+    n_day = day
+    
+    prov1_unc_VX = []
+    prov2_unc_VX = []
+    prov1_unc_VY = []
+    prov2_unc_VY = []
+    prov1_unc_VZ = []
+    prov2_unc_VZ = []
+    
+    for i in range(length):
+        prov1_eph_obj = find_ephem(ephem_list,n_year,n_month,n_day,prov1)
+        try:
+            print("hts:", prov1_eph_obj.name)
+        except:
+            prov1_eph_obj = find_ephem(ephem_list,n_year,n_month,n_day,"mcc")
+            try:
+                print("mcc in place of hts:", prov1_eph_obj.name)
+            except:
+                print("Missed Day")
+                n_year,n_month,n_day = next_day(n_year,n_month,n_day)
+                continue
+                
+        prov2_eph_obj = find_ephem(ephem_list,n_year,n_month,n_day,prov2)
+        try:
+            print("sgf:", prov2_eph_obj.name)
+        except:
+            prov2_eph_obj = find_ephem(ephem_list,n_year,n_month,n_day,"mcc")
+            try:
+                print("mcc in place of sgf:", prov2_eph_obj.name) 
+            except:
+                print("Missed Day")
+                n_year,n_month,n_day = next_day(n_year,n_month,n_day)
+                continue
+        epoch_unix = calculate_epoch_unix(n_year,n_month,n_day)
+        
+        try:
+            dVX1,dVY1,dVZ1,dVR1,dVI1,dVC1,dVX2,dVY2,dVZ2,dVR2,dVI2,dVC2 = prov_mean_vel_diff(prov1_eph_obj.ephem, prov2_eph_obj.ephem, epoch_unix)
+        except:
+            n_year,n_month,n_day = next_day(n_year,n_month,n_day)
+            continue
+        
+        prov1_unc_VX.append(abs(max_conf_day(dVX1,95)))
+        prov2_unc_VX.append(abs(max_conf_day(dVX2,95)))
+        prov1_unc_VY.append(abs(max_conf_day(dVY1,95)))
+        prov2_unc_VY.append(abs(max_conf_day(dVY2,95)))
+        prov1_unc_VZ.append(abs(max_conf_day(dVZ1,95)))
+        prov2_unc_VZ.append(abs(max_conf_day(dVZ2,95)))
+        
+        n_year,n_month,n_day = next_day(n_year,n_month,n_day)
+        print("checked mean")
+        print("next month:",n_month)
+        print("next day:",n_day)
+    return prov1_unc_VX, prov2_unc_VX, prov1_unc_VY, prov2_unc_VY, prov1_unc_VZ, prov2_unc_VZ
+
+
 """Calculates differences between two ephemerides."""
 def single_prov_diff(base_eph, secondary_eph, epoch_unix):
     
@@ -358,6 +417,59 @@ def prov_mean_diff(prov1_eph, prov2_eph, epoch_unix):
         
         curr_time += timestep
     return dX1,dY1,dZ1,dR1,dI1,dC1,dX2,dY2,dZ2,dR2,dI2,dC2
+
+"""Calculates differences between two ephemerides."""
+def prov_mean_vel_diff(prov1_eph, prov2_eph, epoch_unix):
+    timestep = 150
+    one_day = 24*60*60/timestep
+    
+    dVX1 = []
+    dVY1 = []
+    dVZ1 = []
+    dVR1 = []
+    dVI1 = []
+    dVC1 = []
+    dVX2 = []
+    dVY2 = []
+    dVZ2 = []
+    dVR2 = []
+    dVI2 = []
+    dVC2 = []
+    
+    curr_time=0
+    
+    for i in range(int(one_day)):
+        mean_position = (prov1_eph.position_at_unix_time(epoch_unix+curr_time) + prov2_eph.position_at_unix_time(epoch_unix+curr_time))/2
+        mean_velocity = (prov1_eph.derived_velocity_at_unix_time(epoch_unix+curr_time) + prov2_eph.derived_velocity_at_unix_time(epoch_unix+curr_time))/2
+        ECI1_Vdiff = mean_velocity - prov1_eph.derived_velocity_at_unix_time(epoch_unix+curr_time) 
+        ECI2_Vdiff = mean_velocity - prov2_eph.derived_velocity_at_unix_time(epoch_unix+curr_time)
+        
+        
+        
+        RTN = eci_to_rtn_rotation_matrix(mean_position,mean_velocity)
+        
+        RIC1_Vdiff = np.matmul(RTN,ECI1_Vdiff)
+        RIC2_Vdiff = np.matmul(RTN,ECI2_Vdiff)
+        
+        dVX1.append(ECI1_Vdiff[0])
+        dVY1.append(ECI1_Vdiff[1])
+        dVZ1.append(ECI1_Vdiff[2])
+        
+        dVR1.append(RIC1_Vdiff[0])
+        dVI1.append(RIC1_Vdiff[1])
+        dVC1.append(RIC1_Vdiff[2])
+        
+        dVX2.append(ECI2_Vdiff[0])
+        dVY2.append(ECI2_Vdiff[1])
+        dVZ2.append(ECI2_Vdiff[2])
+        
+        dVR2.append(RIC2_Vdiff[0])
+        dVI2.append(RIC2_Vdiff[1])
+        dVC2.append(RIC2_Vdiff[2])
+        
+        curr_time += timestep
+    return dVX1,dVY1,dVZ1,dVR1,dVI1,dVC1,dVX2,dVY2,dVZ2,dVR2,dVI2,dVC2
+
 
 """Compares ephems from 3 consecutive days over a single day."""
 def compare_single_prov_ephems(ephem_list, year, month, day, length, prov_list, preferred_prov):
