@@ -23,8 +23,7 @@ import asyncio
 
 
 def id_data(leo_id):
-    """ID Data for a LeoLabs object to initialize the truth analysis object."""
-    
+    """ID Data for a LeoLabs object to initialize the truth analysis object."""  
     object_url = "".join([auth.api_url, '/catalog/objects/',leo_id])
     object_response = requests.get(object_url,headers=auth.headers)
     leolabs_id = object_response.json()["catalogNumber"] 
@@ -331,7 +330,7 @@ def collect_all_states(ILRS_target_list, epoch, dates_back_from_epoch):
     
     for target in ILRS_target_list:
         state_arr = states_available_x_days_from_epoch(target,epoch,dates_back_from_epoch)
-        if (state_arr is not None):
+        if state_arr is not None:
             tot_state_arr = np.vstack((tot_state_arr,state_arr.astype('<U32')))
         else:
             pass
