@@ -8,8 +8,8 @@ from itertools import zip_longest
 
 # Inputs
 ILRS_targets = ['L5011', 'L3059', 'L2486', 'L4884', 'L1471', 'L5429', 'L3972', 'L3969', 'L2669', 'L2682']
-epoch = [2022,5,15]
-num_days = 2
+epoch = [2022,9,15]
+num_days = 30
 
 
 async def exp_backoff_async_api_call(state_array,start_point,end_point,max_retries=5):
