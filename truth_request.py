@@ -19,6 +19,7 @@ import re
 import time
 import shutil
 from matplotlib import pyplot as plt
+import asyncio
 
 
 def id_data(leo_id):
@@ -26,6 +27,23 @@ def id_data(leo_id):
     
     object_url = "".join([auth.api_url, '/catalog/objects/',leo_id])
     object_response = requests.get(object_url,headers=auth.headers)
+    leolabs_id = object_response.json()["catalogNumber"] 
+    norad_id = object_response.json()["noradCatalogNumber"]
+    name = object_response.json()["name"]
+    
+    id_dict = {}
+    id_dict['leolabs_id'] = leolabs_id
+    id_dict['norad_id'] = norad_id
+    id_dict['object_name'] = name
+    return id_dict
+
+def request_response(object_url):
+    request_response = requests.get(object_url,headers=auth.headers)
+    return request_response
+
+async def async_id_data(leo_id):
+    object_url = "".join([auth.api_url, '/catalog/objects/',leo_id])
+    object_response = await asyncio.to_thread(request_response,object_url)
     leolabs_id = object_response.json()["catalogNumber"] 
     norad_id = object_response.json()["noradCatalogNumber"]
     name = object_response.json()["name"]
@@ -96,12 +114,30 @@ def RIC_covariance_of_propagations(leo_id, state_id, start_time, end_time, times
     
     return prop_with_ric_response.json()["propagation"]
 
+async def async_RIC_covariance_of_propagations(leo_id, state_id, start_time, end_time, timestep):
+    """Asynchonously pull the RIC covariances out of the propagations """ 
+    
+    prop_with_ric_url = "".join([auth.api_url, '/catalog/objects/',leo_id,'/states/',state_id,'/propagations?startTime=',start_time,'&endTime=',end_time,'&timestep=',str(timestep),'&frame=RIC'])
+    
+    prop_with_ric_response = await asyncio.to_thread(request_response,prop_with_ric_url)
+    
+    return prop_with_ric_response.json()["propagation"]
+
 def propagation_of_state(leo_id, state_id, start_time, end_time, timestep):
     """Request state propagations between a start date and an end date and with certain timestep."""
     
     propagation_url = "".join([auth.api_url, '/catalog/objects/',leo_id,'/states/',state_id,'/propagations?startTime=',start_time,'&endTime=',end_time,'&timestep=',str(timestep)])
     
     propagation_response = requests.get(propagation_url, headers=auth.headers)
+    
+    return propagation_response.json()["propagation"]
+
+async def async_propagation_of_state(leo_id, state_id, start_time, end_time, timestep):
+    """Asynchronous request of state propagations between a start date and an end date and with certain timestep."""
+    
+    propagation_url = "".join([auth.api_url, '/catalog/objects/',leo_id,'/states/',state_id,'/propagations?startTime=',start_time,'&endTime=',end_time,'&timestep=',str(timestep)])
+    
+    propagation_response = await asyncio.to_thread(request_response,propagation_url)
     
     return propagation_response.json()["propagation"]
 
@@ -239,13 +275,13 @@ def get_truth_file_list(epoch_date, norad_id, num_days):
     def string_from_date(dt):
         return str(dt.year)[-2:] + '%02d' % (dt.month,) + '%02d' % (dt.day,)
 
-    dates_of_interest = [(epoch_date_in_dt - timedelta(days=i)) for i in range(num_days)]
+    dates_of_interest = [(epoch_date_in_dt - timedelta(days=i)) for i in range(num_days+5)] # go back 5 days from the earliest state
     strings_of_interest = [string_from_date(d) for d in dates_of_interest]
 
     regex_date_matcher = re.compile(r"^.*_(\d{6})_.*\.\w{3}")
     filenames_of_interest = []
 
-    for name in aws_helper.get_list_of_files_s3('leolabs-calibration-sources-test', 'ilrs/'+str(norad_id)): # at this stage no other bucket is required
+    for name in aws_helper.get_list_of_files_s3('leolabs-calibration-sources', 'ilrs/'+str(norad_id)): # at this stage no other bucket is required
         try:
             date_component = regex_date_matcher.match(name).group(1)
 
@@ -271,7 +307,8 @@ def download_truth_files(filenames, truth_directory):
         filename = regex_file_matcher.match(name).group(1)
 
         if not os.path.isfile(truth_directory + '/' + filename):
-            aws_helper.download_s3('leolabs-calibration-sources-test', name, truth_directory + '/' + filename)
+            #aws_helper.download_s3('leolabs-calibration-sources-test', name, truth_directory + '/' + filename)
+            aws_helper.download_s3('leolabs-calibration-sources', name, truth_directory + '/' + filename)
             num_new_files += 1
 
     print('info', 'Syncing ILRS truth data from S3 ({} files downloaded)'.format(num_new_files))
@@ -332,6 +369,34 @@ def state_error(object_id,state_id,epoch,timestep = 150, plotting = False):
             plt.xlabel('Seconds from estimation epoch')
             plt.ylabel('Error')
             plt.show()
+        return epoch_Offset, r_err, i_err, c_err
+    except ValueError:
+        return None, None, None, None
+    
+async def async_state_requests(object_id,state_id,epoch,timestep = 150):
+    """Group all API requests needed for state error estimation."""
+    # Initializing object
+    id_data_TO = await async_id_data(object_id) # Id data of a truth object
+    
+    start_time_str, end_time_str = propagation_dates_from_epoch(epoch)
+    
+    
+    propagations_ST = await async_propagation_of_state(object_id,state_id,start_time_str,end_time_str,timestep) # propagate the state and collect the propagations
+    propagations_ST_list = propagations_list(propagations_ST) # put the propagations in a container
+    ric_covariances_ST = await async_RIC_covariance_of_propagations(object_id,state_id,start_time_str,end_time_str,timestep) # find the covariances of the propagations in the RIC frame
+    ric_covariances_ST_list = RIC_Covariances_list(ric_covariances_ST) # put the RIC covariances in a container
+    TO = ta.TruthAnalysis(id_data_TO,propagations_ST_list,ric_covariances_ST_list) # Initialize a Truth Object
+    return TO
+
+def truth_analysis_errors(truth_object):
+    """Second part of original state_error function. Designed to not contain API requests."""
+    try: # handling the exception that there are no ILRS truth files to download from S3
+        norm_errors_dict, dist_list = truth_object.ilrs_truth_analysis() # Run Truth Analysis on the TO
+        epoch_Offset = extract_epochOffset(norm_errors_dict) # parse epoch Offset
+        r_err = extract_norm_error(norm_errors_dict,0) # parse position errors
+        i_err = extract_norm_error(norm_errors_dict,1)
+        c_err = extract_norm_error(norm_errors_dict,2)
+
         return epoch_Offset, r_err, i_err, c_err
     except ValueError:
         return None, None, None, None
