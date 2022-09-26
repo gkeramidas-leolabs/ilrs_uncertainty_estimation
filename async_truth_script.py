@@ -52,18 +52,24 @@ async def main():
     r_err_list = []
     i_err_list = []
     c_err_list = []
+    Vr_err_list = []
+    Vi_err_list = []
+    Vc_err_list = []
     Ep_Offset_list = []
 
     TOS = await batch_requests(state_array,100) # Doing all API calls and initializing all truth objects
 
     for i in range(len(TOS)):
-        epoch_Offset, r_err, i_err, c_err = tr.truth_analysis_errors(TOS[i])
+        epoch_Offset, r_err, i_err, c_err, Vr_err, Vi_err, Vc_err = tr.truth_analysis_errors(TOS[i])
 
         if (r_err is not None):
                 Ep_Offset_list.append(epoch_Offset)
                 r_err_list.append(r_err)
                 i_err_list.append(i_err)
                 c_err_list.append(c_err)
+                Vr_err_list.append(Vr_err)
+                Vi_err_list.append(Vi_err)
+                Vc_err_list.append(Vc_err)
 
         else: 
             pass   
@@ -72,19 +78,34 @@ async def main():
         r_err_collection = list(zip_longest(*r_err_list)) 
         i_err_collection = list(zip_longest(*i_err_list))
         c_err_collection = list(zip_longest(*c_err_list))
+        Vr_err_collection = list(zip_longest(*Vr_err_list)) 
+        Vi_err_collection = list(zip_longest(*Vi_err_list))
+        Vc_err_collection = list(zip_longest(*Vc_err_list))
+
 
     r_std = tr.extract_std_from_error_distributions(r_err_collection)
     i_std = tr.extract_std_from_error_distributions(i_err_collection)
     c_std = tr.extract_std_from_error_distributions(c_err_collection)
+    Vr_std = tr.extract_std_from_error_distributions(Vr_err_collection)
+    Vi_std = tr.extract_std_from_error_distributions(Vi_err_collection)
+    Vc_std = tr.extract_std_from_error_distributions(Vc_err_collection)
 
-    plt.plot(Ep_Offset_list[0],r_std,"g",label="radial")
-    plt.plot(Ep_Offset_list[0],c_std,"b",label="cross-track")
-    plt.plot(Ep_Offset_list[0],i_std,"r",label="in-track")
-    plt.xlabel("Seconds from estimation Epoch")
-    plt.ylabel("Stdev")
-    plt.legend()
+
+    fig,(ax1,ax2) = plt.subplots(1,2,figsize=(20,5))
+    ax1.plot(Ep_Offset,r_std,"g",label="radial")
+    ax1.plot(Ep_Offset,c_std,"b",label="cross-track")
+    ax1.plot(Ep_Offset,i_std,"r",label="in-track")
+    ax2.plot(Ep_Offset,Vr_std,"g",label="radial")
+    ax2.plot(Ep_Offset,Vc_std,"b",label="cross-track")
+    ax2.plot(Ep_Offset,Vi_std,"r",label="in-track")
+
+    ax1.set_xlabel("Seconds from estimation Epoch")
+    ax1.set_ylabel("Stdev")
+    ax2.set_xlabel("Seconds from estimation Epoch")
+    ax2.set_ylabel("Stdev")
+
+    ax1.legend()
     plt.show()
-
 
 if __name__ == "__main__":
     asyncio.run(main())
