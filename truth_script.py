@@ -14,16 +14,27 @@ num_days = 2
 tr.dwld_data_for_all_targets(ILRS_targets[:],epoch,num_days)
 
 # Perform truth analysis
-Ep_Offset, r_err_coll, i_err_coll, c_err_coll = tr.collections_of_truth_state_errors(ILRS_targets[:],epoch,num_days)
+Ep_Offset, r_err_coll, i_err_coll, c_err_coll, Vr_err_coll, Vi_err_coll, Vc_err_coll  = tr.collections_of_truth_state_errors(ILRS_targets[:],epoch,num_days)
 
 r_std = tr.extract_std_from_error_distributions(r_err_coll)
 i_std = tr.extract_std_from_error_distributions(i_err_coll)
 c_std = tr.extract_std_from_error_distributions(c_err_coll)
+Vr_std = tr.extract_std_from_error_distributions(Vr_err_coll)
+Vi_std = tr.extract_std_from_error_distributions(Vi_err_coll)
+Vc_std = tr.extract_std_from_error_distributions(Vc_err_coll)
 
-plt.plot(Ep_Offset,r_std,"g",label="radial")
-plt.plot(Ep_Offset,c_std,"b",label="cross-track")
-plt.plot(Ep_Offset,i_std,"r",label="in-track")
-plt.xlabel("Seconds from estimation Epoch")
-plt.ylabel("Stdev")
-plt.legend()
+fig,(ax1,ax2) = plt.subplots(1,2,figsize=(20,5))
+ax1.plot(Ep_Offset,r_std,"g",label="radial")
+ax1.plot(Ep_Offset,c_std,"b",label="cross-track")
+ax1.plot(Ep_Offset,i_std,"r",label="in-track")
+ax2.plot(Ep_Offset,Vr_std,"g",label="radial")
+ax2.plot(Ep_Offset,Vc_std,"b",label="cross-track")
+ax2.plot(Ep_Offset,Vi_std,"r",label="in-track")
+
+ax1.set_xlabel("Seconds from estimation Epoch")
+ax1.set_ylabel("Stdev")
+ax2.set_xlabel("Seconds from estimation Epoch")
+ax2.set_ylabel("Stdev")
+
+ax1.legend()
 plt.show()
