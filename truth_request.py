@@ -395,10 +395,13 @@ def truth_analysis_errors(truth_object):
         r_err = extract_norm_error(norm_errors_dict,0) # parse position errors
         i_err = extract_norm_error(norm_errors_dict,1)
         c_err = extract_norm_error(norm_errors_dict,2)
+        Vr_err = extract_norm_error(norm_errors_dict,3) # parse position errors
+        Vi_err = extract_norm_error(norm_errors_dict,4)
+        Vc_err = extract_norm_error(norm_errors_dict,5)
 
-        return epoch_Offset, r_err, i_err, c_err
+        return epoch_Offset, r_err, i_err, c_err, Vr_err, Vi_err, Vc_err 
     except ValueError:
-        return None, None, None, None
+        return None, None, None, None, None, None, None
     
 def collections_of_truth_state_errors(ILRS_target_list, epoch, days_from_epoch):
     """Collects all errors for a given list of ILRS targets and dates and returns them in the form of distributions."""
@@ -412,6 +415,9 @@ def collections_of_truth_state_errors(ILRS_target_list, epoch, days_from_epoch):
     r_err_list = []
     i_err_list = []
     c_err_list = []
+    Vr_err_list = []
+    Vi_err_list = []
+    Vc_err_list = []
     Ep_Offset_list = []
 
     counter = 0
@@ -420,7 +426,7 @@ def collections_of_truth_state_errors(ILRS_target_list, epoch, days_from_epoch):
         state_id = state_array[i][1]
         timestamp = state_array[i][2]
 
-        epoch_Offset, r_err, i_err, c_err = state_error(obj_id,state_id,timestamp)
+        epoch_Offset, r_err, i_err, c_err, Vr_err, Vi_err, Vc_err = state_error(obj_id,state_id,timestamp)
         counter += 1
         print(f"state {counter}/{num_of_states} done!")
         
@@ -429,6 +435,9 @@ def collections_of_truth_state_errors(ILRS_target_list, epoch, days_from_epoch):
             r_err_list.append(r_err)
             i_err_list.append(i_err)
             c_err_list.append(c_err)
+            Vr_err_list.append(Vr_err)
+            Vi_err_list.append(Vi_err)
+            Vc_err_list.append(Vc_err)
 
         else: 
             pass   
@@ -437,12 +446,15 @@ def collections_of_truth_state_errors(ILRS_target_list, epoch, days_from_epoch):
         r_err_collection = list(zip_longest(*r_err_list)) 
         i_err_collection = list(zip_longest(*i_err_list))
         c_err_collection = list(zip_longest(*c_err_list))
+        Vr_err_collection = list(zip_longest(*Vr_err_list)) 
+        Vi_err_collection = list(zip_longest(*Vi_err_list))
+        Vc_err_collection = list(zip_longest(*Vc_err_list))
     
     print("Epoch_Offset_length =",len(Ep_Offset_list))
     print("r_err_length = ",len(r_err_collection))
     print("r_err[0]_length = ",len(r_err_collection[0]))
    
-    return Ep_Offset_list[0], r_err_collection, i_err_collection, c_err_collection
+    return Ep_Offset_list[0], r_err_collection, i_err_collection, c_err_collection, Vr_err_collection, Vi_err_collection, Vc_err_collection
 
 # Initialize orekit
 orekit_vm = orekit.initVM()
