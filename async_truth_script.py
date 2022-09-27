@@ -9,7 +9,7 @@ from itertools import zip_longest
 # Inputs
 ILRS_targets = ['L5011', 'L3059', 'L2486', 'L4884', 'L1471', 'L5429', 'L3972', 'L3969', 'L2669', 'L2682']
 epoch = [2022,9,15]
-num_days = 30
+num_days = 3
 
 
 async def exp_backoff_async_api_call(state_array,start_point,end_point,max_retries=5):
@@ -92,12 +92,12 @@ async def main():
 
 
     fig,(ax1,ax2) = plt.subplots(1,2,figsize=(20,5))
-    ax1.plot(Ep_Offset,r_std,"g",label="radial")
-    ax1.plot(Ep_Offset,c_std,"b",label="cross-track")
-    ax1.plot(Ep_Offset,i_std,"r",label="in-track")
-    ax2.plot(Ep_Offset,Vr_std,"g",label="radial")
-    ax2.plot(Ep_Offset,Vc_std,"b",label="cross-track")
-    ax2.plot(Ep_Offset,Vi_std,"r",label="in-track")
+    ax1.plot(Ep_Offset_list[0],r_std,"g",label="radial")
+    ax1.plot(Ep_Offset_list[0],c_std,"b",label="cross-track")
+    ax1.plot(Ep_Offset_list[0],i_std,"r",label="in-track")
+    ax2.plot(Ep_Offset_list[0],Vr_std,"g",label="radial")
+    ax2.plot(Ep_Offset_list[0],Vc_std,"b",label="cross-track")
+    ax2.plot(Ep_Offset_list[0],Vi_std,"r",label="in-track")
 
     ax1.set_xlabel("Seconds from estimation Epoch")
     ax1.set_ylabel("Stdev")
