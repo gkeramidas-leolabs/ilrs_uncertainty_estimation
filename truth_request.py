@@ -20,13 +20,13 @@ import time
 import shutil
 from matplotlib import pyplot as plt
 import asyncio
-
-import importlib.util
+import truth_analysis_local as ta
+#import importlib.util
 import sys
-spec = importlib.util.spec_from_file_location("truth_analysis", "/Users/gkeramidas/Projects/leo-backend-od/truth_analysis.py")
-ta = importlib.util.module_from_spec(spec)
-sys.modules["truth_analysis"] = ta
-spec.loader.exec_module(ta)
+#spec = importlib.util.spec_from_file_location("truth_analysis", "/Users/gkeramidas/Projects/leo-backend-od/truth_analysis.py")
+#ta = importlib.util.module_from_spec(spec)
+#sys.modules["truth_analysis"] = ta
+#spec.loader.exec_module(ta)
 
 
 
