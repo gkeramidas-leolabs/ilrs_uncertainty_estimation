@@ -8,7 +8,7 @@ from datetime import timedelta
 import orekit
 from orekit.pyhelpers import  setup_orekit_curdir
 import auth
-import truth_analysis as ta
+#import truth_analysis as ta
 from dateutil.parser import parse as date_parse
 import statistics
 from itertools import zip_longest
@@ -20,6 +20,14 @@ import time
 import shutil
 from matplotlib import pyplot as plt
 import asyncio
+
+import importlib.util
+import sys
+spec = importlib.util.spec_from_file_location("truth_analysis", "/Users/gkeramidas/Projects/leo-backend-od/truth_analysis.py")
+ta = importlib.util.module_from_spec(spec)
+sys.modules["truth_analysis"] = ta
+spec.loader.exec_module(ta)
+
 
 
 def id_data(leo_id):
