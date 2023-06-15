@@ -5,3 +5,6 @@ leolabs-config-data-dynamic/
 *.json
 *.txt
 truth/**
+misc/**
+notebooks/**
+.vscode/**
