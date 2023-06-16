@@ -5,10 +5,7 @@ leo_backend_od_path = Path("/Users/gkeramidas/Projects/od-master/leo-backend-od"
 sys.path.append(str(leo_backend_od_path))
 import os
 
-os.environ["BACKEND_API_URL"] = "https://api.leolabs.space/v1"
 
-
-import os
 import re
 import datetime
 from datetime import timedelta
