@@ -1,26 +1,20 @@
+import os
 from datetime import datetime
-from datetime import timedelta
-from dateutil.parser import parse as date_parse
-import auth
-import requests
-import json
-import datetime as dt
-import numpy as np
-import random
 import statistics
+
+import numpy as np
 import scipy.stats
 import scipy.optimize
-from matplotlib import pyplot as plt
-import orekit
-from orekit.pyhelpers import setup_orekit_curdir
-from ilrs import TruthEphemerisManager
-import ilrs
+
+# import orekit
+# from orekit.pyhelpers import setup_orekit_curdir
+from odlib.ilrs import TruthEphemerisManager
 from od_utils.frame_conversion import eci_to_rtn_rotation_matrix
-import os
+
 
 # Initialize orekit
-orekit_vm = orekit.initVM()
-setup_orekit_curdir("/Users/gkeramidas/Projects/learning/leolabs-config-data-dynamic/")
+# orekit_vm = orekit.initVM()
+# setup_orekit_curdir("/Users/gkeramidas/Projects/ilrs_uncertainty_estimation/leolabs-config-data-dynamic/")
 
 
 """Class that takes truth ephemeris objects with their metadata."""

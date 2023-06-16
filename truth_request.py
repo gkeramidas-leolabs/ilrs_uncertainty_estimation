@@ -1,35 +1,36 @@
-import json
-from operator import truth
+import sys
+
+sys.path.append("/Users/gkeramidas/Projects/od-master/leo-backend-od")
 import os
-import requests
-import numpy as np
+
+os.environ["BACKEND_API_URL"] = "https://api.leolabs.space/v1"
+
+
+import os
+import re
 import datetime
 from datetime import timedelta
-import orekit
-from orekit.pyhelpers import setup_orekit_curdir
-import auth
-
-# import truth_analysis as ta
-from dateutil.parser import parse as date_parse
 import statistics
 from itertools import zip_longest
-from utilities.aws_helper import AwsHelper
-from utilities.api import Api
-from utilities.od_logging import OptionalLog
-import re
-import time
 import shutil
+
+import requests
+import numpy as np
+from dateutil.parser import parse as date_parse
 from matplotlib import pyplot as plt
 import asyncio
 
-# import truth_analysis_local as ta
-# import importlib.util
-import sys
+# import orekit
+# from orekit.pyhelpers import setup_orekit_curdir
 
-# spec = importlib.util.spec_from_file_location("truth_analysis", "/Users/gkeramidas/Projects/leo-backend-od/truth_analysis.py")
-# ta = importlib.util.module_from_spec(spec)
-# sys.modules["truth_analysis"] = ta
-# spec.loader.exec_module(ta)
+
+from utilities.aws_helper import AwsHelper
+from utilities.api import Api
+import auth
+import truth_analysis_local as tal
+
+api_client = Api.get_client()
+aws_helper = AwsHelper()
 
 
 def id_data(leo_id):
@@ -285,62 +286,69 @@ class RicCovariancesContainer:
         self.covariance = covariance
 
 
-def Ric_propagation_dict_to_container(ric_prop_dict):
+def Ric_propagation_dict_to_container(ric_prop_json) -> RicCovariancesContainer:
     """Takes a single RIC propagation json dictionary and returns a RicCovariancesContainer object."""
 
-    covariance = ric_prop_dict["covariance"]
+    covariance = ric_prop_json["covariance"]
 
     return RicCovariancesContainer(covariance)
 
 
-def Full_Ric_propagation_dict_to_container(ric_prop_dict):
+def Full_Ric_propagation_dict_to_container(ric_prop_json):
     """Takes a single Full RIC propagation json dictionary and returns a FullRicCovariancesContainer object."""
 
-    timestamp = date_parse(ric_prop_dict["timestamp"], ignoretz=True)
-    position = ric_prop_dict["position"]
-    velocity = ric_prop_dict["velocity"]
-    covariance = ric_prop_dict["covariance"]
+    timestamp = date_parse(ric_prop_json["timestamp"], ignoretz=True)
+    position = ric_prop_json["position"]
+    velocity = ric_prop_json["velocity"]
+    covariance = ric_prop_json["covariance"]
 
     return FullRicCovariancesContainer(timestamp, position, velocity, covariance)
 
 
-def propagation_dict_to_container(prop_dict):
+def propagation_dict_to_container(prop_json):
     """Takes a single propagation list and returns a PropagationsContainer object."""
 
-    timestamp = date_parse(prop_dict["timestamp"], ignoretz=True)
-    position = prop_dict["position"]
-    velocity = prop_dict["velocity"]
-    covariance = prop_dict["covariance"]
+    timestamp = date_parse(prop_json["timestamp"], ignoretz=True)
+    position = prop_json["position"]
+    velocity = prop_json["velocity"]
+    covariance = prop_json["covariance"]
 
     return PropagationsContainer(timestamp, position, velocity, covariance)
 
 
-def propagations_list(propagations_dict):
-    """Takes a propagations dict and returns a list with PropagationContainer objects."""
+def propagations_list(propagations_json_list):
+    """Takes a list of propagations jsons and returns a list with PropagationContainer objects."""
 
-    prop_list = []
-    for i in range(len(propagations_dict)):
-        prop_list.append(propagation_dict_to_container(propagations_dict[i]))
+    prop_list = list(map(propagation_dict_to_container, propagations_json_list))
+    # prop_list = []
+    # for i in range(len(propagations_dict)):
+    #     prop_list.append(propagation_dict_to_container(propagations_dict[i]))
 
     return prop_list
 
 
-def RIC_Covariances_list(ric_dict):
-    """Takes a RIC propagations dict and returns a list of RicCovariancesContainer object."""
+def RIC_Covariances_list(ric_json):
+    """Takes a list of RIC propagations json dicts and returns a list of RicCovariancesContainer object."""
 
-    ric_list = []
-    for i in range(len(ric_dict)):
-        ric_list.append(Ric_propagation_dict_to_container(ric_dict[i]).covariance)
+    ric_list = list(
+        map(
+            lambda obj: obj.covariance, map(Ric_propagation_dict_to_container, ric_json)
+        )
+    )
+    # ric_list = []
+    # for i in range(len(ric_dict)):
+    #     ric_list.append(Ric_propagation_dict_to_container(ric_dict[i]).covariance)
 
     return ric_list
 
 
-def Full_RIC_Covariances_list(ric_dict):
-    """Takes a Full RIC propagations dict and returns a list of FullRicCovariancesContainer object."""
+def Full_RIC_Covariances_list(ric_json):
+    """Takes a list of Full RIC propagations json dicts and returns a list of FullRicCovariancesContainer objects."""
 
-    ric_list = []
-    for i in range(len(ric_dict)):
-        ric_list.append(Full_Ric_propagation_dict_to_container(ric_dict[i]))
+    ric_list = list(map(Full_Ric_propagation_dict_to_container, ric_json))
+    # ric_list = []
+    # for i in range(len(ric_dict)):
+    #     ric_list.append(Full_Ric_propagation_dict_to_container(ric_dict[i]))
 
     return ric_list
 
@@ -348,10 +356,11 @@ def Full_RIC_Covariances_list(ric_dict):
 def extract_epochOffset(norm_errors_dict):
     """Takes a dictionary with normalized errors and extracts the epoch Offset and returns them into a list"""
 
-    epoch_Offset_list = []
+    epoch_Offset_list = list(map(lambda obj: obj["epochOffset"], norm_errors_dict))
+    # epoch_Offset_list = []
 
-    for i in range(len(norm_errors_dict)):
-        epoch_Offset_list.append(norm_errors_dict[i]["epochOffset"])
+    # for i in range(len(norm_errors_dict)):
+    #     epoch_Offset_list.append(norm_errors_dict[i]["epochOffset"])
 
     return epoch_Offset_list
 
@@ -389,21 +398,12 @@ def cull_outliers(arr):
 
 def extract_std_from_error_distributions(err_collection):
     """Takes a collection of error distributions and returns the standard deviation at each time step."""
-    stdevs = []
-    for i in range(len(err_collection)):
-        stdevs.append(statistics.pstdev(cull_outliers(err_collection[i])))
+
+    stdevs = list(map(lambda x: statistics.pstdev(cull_outliers(x)), err_collection))
+    # stdevs = []
+    # for i in range(len(err_collection)):
+    #     stdevs.append(statistics.pstdev(cull_outliers(err_collection[i])))
     return stdevs
-
-
-def aws_init(logger=None):
-    """Initialize aws"""
-    # Initialize API connection object
-    api_client = Api.get_client(logger=logger)
-
-    # Initialize AWS helper functions
-    aws_helper = AwsHelper(logger=logger)
-
-    return api_client, aws_helper
 
 
 def set_up_truth_directory_for_target(leolabs_id):
@@ -544,7 +544,7 @@ def state_error(object_id, state_id, epoch, timestep=150, plotting=False):
     ric_covariances_ST_list = RIC_Covariances_list(
         ric_covariances_ST
     )  # put the RIC covariances in a container
-    TO = ta.TruthAnalysis(
+    TO = tal.TruthAnalysis(
         id_data_TO, propagations_ST_list, ric_covariances_ST_list
     )  # Initialize a Truth Object
 
@@ -592,7 +592,7 @@ async def async_state_requests(object_id, state_id, epoch, timestep=150):
     ric_covariances_ST_list = RIC_Covariances_list(
         ric_covariances_ST
     )  # put the RIC covariances in a container
-    TO = ta.TruthAnalysis(
+    TO = tal.TruthAnalysis(
         id_data_TO, propagations_ST_list, ric_covariances_ST_list
     )  # Initialize a Truth Object
     return TO
@@ -687,8 +687,5 @@ def collections_of_truth_state_errors(ILRS_target_list, epoch, days_from_epoch):
 
 
 # Initialize orekit
-orekit_vm = orekit.initVM()
-setup_orekit_curdir("/Users/gkeramidas/Projects/learning/leolabs-config-data-dynamic/")
-
-# Initialize aws
-api_client, aws_helper = aws_init()
+# orekit_vm = orekit.initVM()
+# setup_orekit_curdir("/Users/gkeramidas/Projects/ilrs_uncertainty_estimation/leolabs-config-data-dynamic/")
