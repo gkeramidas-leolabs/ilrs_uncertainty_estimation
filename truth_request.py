@@ -1,9 +1,9 @@
+import os
 import sys
 from pathlib import Path
 
 leo_backend_od_path = Path("/Users/gkeramidas/Projects/od-master/leo-backend-od")
 sys.path.append(str(leo_backend_od_path))
-import os
 
 
 import re
@@ -12,16 +12,13 @@ from datetime import timedelta
 import statistics
 from itertools import zip_longest
 import shutil
+from typing import Dict, List, Any, Union
 
 import requests
 import numpy as np
 from dateutil.parser import parse as date_parse
 from matplotlib import pyplot as plt
 import asyncio
-
-# import orekit
-# from orekit.pyhelpers import setup_orekit_curdir
-
 
 from utilities.aws_helper import AwsHelper
 from utilities.api import Api
@@ -32,7 +29,7 @@ api_client = Api.get_client()
 aws_helper = AwsHelper()
 
 
-def id_data(leo_id):
+def id_data(leo_id: str) -> Dict[str, Any]:
     """ID Data for a LeoLabs object to initialize the truth analysis object."""
     object_url = "".join([auth.api_url, "/catalog/objects/", leo_id])
     object_response = requests.get(object_url, headers=auth.headers)
@@ -47,12 +44,12 @@ def id_data(leo_id):
     return id_dict
 
 
-def request_response(object_url):
+def request_response(object_url: str) -> Dict[str, Any]:
     request_response = requests.get(object_url, headers=auth.headers)
     return request_response
 
 
-async def async_id_data(leo_id):
+async def async_id_data(leo_id: str) -> Dict[str, Any]:
     object_url = "".join([auth.api_url, "/catalog/objects/", leo_id])
     object_response = await asyncio.to_thread(request_response, object_url)
     leolabs_id = object_response.json()["catalogNumber"]
@@ -66,24 +63,26 @@ async def async_id_data(leo_id):
     return id_dict
 
 
-def propagation_dates_from_epoch(epoch):
+def propagation_dates_from_epoch(epoch: List[int]) -> tuple[str, str]:
     """Function handed an epoch (as a list) and returning start and end days, 1 day away from epoch"""
 
-    epoch_in_dt = date_parse(epoch, ignoretz=True)  # convert epoch to datetime
+    epoch_in_dt = datetime.datetime(*epoch, tzinfo=None)
     start_time = epoch_in_dt - timedelta(
         seconds=86399
     )  # start of propagations is 1 day before epoch
     end_time = epoch_in_dt + timedelta(
         seconds=86401
     )  # end of propagations is 1 day after epoch
-    # convert datetimes to strings
+
     start_time_str = start_time.strftime("%Y-%m-%dT%H:%M:%SZ")
     end_time_str = end_time.strftime("%Y-%m-%dT%H:%M:%SZ")
 
     return start_time_str, end_time_str
 
 
-def states_available_x_days_from_epoch(object_id, epoch, num_days):
+def states_available_x_days_from_epoch(
+    object_id: str, epoch: List[int], num_days: int
+) -> Union[np.ndarray, None]:
     """Takes an object id and a date and returns all the states available for this target in a number of days prior to epoch"""
 
     end_time_str = datetime.datetime(epoch[0], epoch[1], epoch[2]).strftime(
@@ -127,7 +126,9 @@ def states_available_x_days_from_epoch(object_id, epoch, num_days):
         return None
 
 
-def state_data(leo_id, start_date, end_date):
+def state_data(
+    leo_id: str, start_date: List[int], end_date: List[int]
+) -> Dict[str, Any]:
     """Pull all the states of a LeoLabs object between certain dates"""
 
     start_time = datetime.datetime(
@@ -151,12 +152,12 @@ def state_data(leo_id, start_date, end_date):
 
     states_response = requests.get(states_url, headers=auth.headers)
 
-    first_state_id = states_response.json()["states"][0]["id"]
-
     return states_response
 
 
-def RIC_covariance_of_propagations(leo_id, state_id, start_time, end_time, timestep):
+def RIC_covariance_of_propagations(
+    leo_id: str, state_id: str, start_time: str, end_time: str, timestep: int
+) -> List[Dict[str, Any]]:
     """Pull the RIC covariances out of the propagations"""
 
     prop_with_ric_url = "".join(
@@ -182,8 +183,8 @@ def RIC_covariance_of_propagations(leo_id, state_id, start_time, end_time, times
 
 
 async def async_RIC_covariance_of_propagations(
-    leo_id, state_id, start_time, end_time, timestep
-):
+    leo_id: str, state_id: str, start_time: str, end_time: str, timestep: int
+) -> List[Dict[str, Any]]:
     """Asynchonously pull the RIC covariances out of the propagations"""
 
     prop_with_ric_url = "".join(
@@ -210,7 +211,9 @@ async def async_RIC_covariance_of_propagations(
     return prop_with_ric_response.json()["propagation"]
 
 
-def propagation_of_state(leo_id, state_id, start_time, end_time, timestep):
+def propagation_of_state(
+    leo_id: str, state_id: str, start_time: str, end_time: str, timestep: int
+) -> List[Dict[str, Any]]:
     """Request state propagations between a start date and an end date and with certain timestep."""
 
     propagation_url = "".join(
@@ -234,7 +237,9 @@ def propagation_of_state(leo_id, state_id, start_time, end_time, timestep):
     return propagation_response.json()["propagation"]
 
 
-async def async_propagation_of_state(leo_id, state_id, start_time, end_time, timestep):
+async def async_propagation_of_state(
+    leo_id: str, state_id: str, start_time: str, end_time: str, timestep: int
+) -> Dict[str, Any]:
     """Asynchronous request of state propagations between a start date and an end date and with certain timestep."""
 
     propagation_url = "".join(
@@ -261,7 +266,13 @@ async def async_propagation_of_state(leo_id, state_id, start_time, end_time, tim
 class PropagationsContainer:
     """Convenience container for propagations"""
 
-    def __init__(self, timestamp, position, velocity, covariance):
+    def __init__(
+        self,
+        timestamp: datetime.datetime,
+        position: List[float],
+        velocity: List[float],
+        covariance: List[float],
+    ):
         self.timestamp = timestamp
         self.position = position
         self.velocity = velocity
@@ -271,7 +282,13 @@ class PropagationsContainer:
 class FullRicCovariancesContainer:
     """Convenience container for Full Ric propagations"""
 
-    def __init__(self, timestamp, position, velocity, covariance):
+    def __init__(
+        self,
+        timestamp: datetime.datetime,
+        position: List[float],
+        velocity: List[float],
+        covariance: List[float],
+    ):
         self.timestamp = timestamp
         self.position = position
         self.velocity = velocity
@@ -281,11 +298,13 @@ class FullRicCovariancesContainer:
 class RicCovariancesContainer:
     """Convenience container for RIC covariances"""
 
-    def __init__(self, covariance):
+    def __init__(self, covariance: List[float]):
         self.covariance = covariance
 
 
-def Ric_propagation_dict_to_container(ric_prop_json) -> RicCovariancesContainer:
+def Ric_propagation_dict_to_container(
+    ric_prop_json: Dict[str, Any]
+) -> RicCovariancesContainer:
     """Takes a single RIC propagation json dictionary and returns a RicCovariancesContainer object."""
 
     covariance = ric_prop_json["covariance"]
@@ -293,7 +312,9 @@ def Ric_propagation_dict_to_container(ric_prop_json) -> RicCovariancesContainer:
     return RicCovariancesContainer(covariance)
 
 
-def Full_Ric_propagation_dict_to_container(ric_prop_json):
+def Full_Ric_propagation_dict_to_container(
+    ric_prop_json: Dict[str, Any]
+) -> FullRicCovariancesContainer:
     """Takes a single Full RIC propagation json dictionary and returns a FullRicCovariancesContainer object."""
 
     timestamp = date_parse(ric_prop_json["timestamp"], ignoretz=True)
@@ -304,7 +325,7 @@ def Full_Ric_propagation_dict_to_container(ric_prop_json):
     return FullRicCovariancesContainer(timestamp, position, velocity, covariance)
 
 
-def propagation_dict_to_container(prop_json):
+def propagation_dict_to_container(prop_json: Dict[str, Any]) -> PropagationsContainer:
     """Takes a single propagation list and returns a PropagationsContainer object."""
 
     timestamp = date_parse(prop_json["timestamp"], ignoretz=True)
@@ -315,18 +336,19 @@ def propagation_dict_to_container(prop_json):
     return PropagationsContainer(timestamp, position, velocity, covariance)
 
 
-def propagations_list(propagations_json_list):
+def propagations_list(
+    propagations_json_list: List[Dict[str, Any]]
+) -> List[PropagationsContainer]:
     """Takes a list of propagations jsons and returns a list with PropagationContainer objects."""
 
     prop_list = list(map(propagation_dict_to_container, propagations_json_list))
-    # prop_list = []
-    # for i in range(len(propagations_dict)):
-    #     prop_list.append(propagation_dict_to_container(propagations_dict[i]))
 
     return prop_list
 
 
-def RIC_Covariances_list(ric_json):
+def RIC_Covariances_list(
+    ric_json: List[Dict[str, Any]]
+) -> List[RicCovariancesContainer]:
     """Takes a list of RIC propagations json dicts and returns a list of RicCovariancesContainer object."""
 
     ric_list = list(
@@ -334,52 +356,44 @@ def RIC_Covariances_list(ric_json):
             lambda obj: obj.covariance, map(Ric_propagation_dict_to_container, ric_json)
         )
     )
-    # ric_list = []
-    # for i in range(len(ric_dict)):
-    #     ric_list.append(Ric_propagation_dict_to_container(ric_dict[i]).covariance)
 
     return ric_list
 
 
-def Full_RIC_Covariances_list(ric_json):
+def Full_RIC_Covariances_list(
+    ric_json: List[Dict[str, Any]]
+) -> List[FullRicCovariancesContainer]:
     """Takes a list of Full RIC propagations json dicts and returns a list of FullRicCovariancesContainer objects."""
 
     ric_list = list(map(Full_Ric_propagation_dict_to_container, ric_json))
-    # ric_list = []
-    # for i in range(len(ric_dict)):
-    #     ric_list.append(Full_Ric_propagation_dict_to_container(ric_dict[i]))
 
     return ric_list
 
 
-def extract_epochOffset(norm_errors_dict):
-    """Takes a dictionary with normalized errors and extracts the epoch Offset and returns them into a list"""
+def extract_epochOffset(norm_errors_dicts: List[Dict[str, Any]]) -> List[float]:
+    """Takes a list of dictionaries with normalized errors, extracts the epoch Offsets and returns them into a list"""
 
-    epoch_Offset_list = list(map(lambda obj: obj["epochOffset"], norm_errors_dict))
-    # epoch_Offset_list = []
-
-    # for i in range(len(norm_errors_dict)):
-    #     epoch_Offset_list.append(norm_errors_dict[i]["epochOffset"])
+    epoch_Offset_list = list(map(lambda obj: obj["epochOffset"], norm_errors_dicts))
 
     return epoch_Offset_list
 
 
-def extract_norm_error(norm_errors_dict, coord_ind):
-    """Takes a dictionary with normalized errors and extracts any of the errors, based on the coord_ind"""
+def extract_norm_error(
+    norm_errors_dicts: List[Dict[str, Any]], coord_ind: int
+) -> List[float]:
+    """Takes a list of dictionaries with normalized errors and extracts any of the errors, based on the coord_ind"""
 
-    error_list = []
-
-    for i in range(len(norm_errors_dict)):
-        error_list.append(norm_errors_dict[i]["vals"][coord_ind])
+    error_list = list(map(lambda obj: obj["vals"][coord_ind], norm_errors_dicts))
 
     return error_list
 
 
-def z_score(d, MAD):
+def z_score(d: float, MAD: float) -> float:
+
     return 0.6745 * d / MAD
 
 
-def cull_outliers(arr):
+def cull_outliers(arr: List[float]) -> List[float]:
     """Function for culling outliers based on their mean squared distance from the median."""
     threshold = 3.0
 
@@ -395,17 +409,15 @@ def cull_outliers(arr):
     return [y for x, y in zip(diffs, arr) if z_score(x, MAD) < threshold]
 
 
-def extract_std_from_error_distributions(err_collection):
+def extract_std_from_error_distributions(err_collection) -> List[float]:
     """Takes a collection of error distributions and returns the standard deviation at each time step."""
 
     stdevs = list(map(lambda x: statistics.pstdev(cull_outliers(x)), err_collection))
-    # stdevs = []
-    # for i in range(len(err_collection)):
-    #     stdevs.append(statistics.pstdev(cull_outliers(err_collection[i])))
+
     return stdevs
 
 
-def set_up_truth_directory_for_target(leolabs_id):
+def set_up_truth_directory_for_target(leolabs_id: Any) -> str:
     """Prepares a local directory for storing ILRS truth files for particular ILRS target."""
     try:
         shutil.rmtree(
@@ -429,7 +441,9 @@ def set_up_truth_directory_for_target(leolabs_id):
     return truth_directory
 
 
-def get_truth_file_list(epoch_date, norad_id, num_days):
+def get_truth_file_list(
+    epoch_date: List[int], norad_id: int, num_days: int
+) -> List[str]:
     """Builds list of S3 truth files for the current object that match the date range of interest."""
 
     epoch_date_in_dt = datetime.datetime(
@@ -462,7 +476,7 @@ def get_truth_file_list(epoch_date, norad_id, num_days):
     return filenames_of_interest
 
 
-def download_truth_files(filenames, truth_directory):
+def download_truth_files(filenames: List[str], truth_directory: str):
     """Downloads truth files from S3 for the current truth target."""
 
     def date_from_string(dt_string):
@@ -490,7 +504,7 @@ def download_truth_files(filenames, truth_directory):
     )
 
 
-def dwld_data_for_target(leolabs_id, epoch_date, num_days):
+def dwld_data_for_target(leolabs_id: str, epoch_date: List[int], num_days: int):
     """Downloads data for a particular target."""
     norad_id = id_data(leolabs_id)["norad_id"]  # look up norad id of target
     trth_dir = set_up_truth_directory_for_target(
@@ -502,13 +516,15 @@ def dwld_data_for_target(leolabs_id, epoch_date, num_days):
     download_truth_files(trth_flnms, trth_dir)  # download all files
 
 
-def dwld_data_for_all_targets(target_list, epoch, num_days):
+def dwld_data_for_all_targets(target_list: List[str], epoch: List[int], num_days: int):
     """Downloads data for all targets."""
     for target in target_list:
         dwld_data_for_target(target, epoch, num_days)
 
 
-def collect_all_states(ILRS_target_list, epoch, dates_back_from_epoch):
+def collect_all_states(
+    ILRS_target_list: List[str], epoch: List[int], dates_back_from_epoch: int
+) -> np.ndarray:
     """Collects all states for a list of ILRS targets and a specified date range going back from the epoch."""
     tot_state_arr = np.empty(3, dtype="<U32")
 
@@ -524,7 +540,9 @@ def collect_all_states(ILRS_target_list, epoch, dates_back_from_epoch):
     return tot_state_arr[1:]
 
 
-def state_error(object_id, state_id, epoch, timestep=150, plotting=False):
+def state_error(
+    object_id: str, state_id: str, epoch: List[int], timestep=150, plotting=False
+) -> Union(tuple[float, float, float, float], tuple[None, None, None, None]):
     """Creates a truth object from a state and runs truth analysis on it, returning the errors."""
     # Initializing object
     id_data_TO = id_data(object_id)  # Id data of a truth object
@@ -572,7 +590,9 @@ def state_error(object_id, state_id, epoch, timestep=150, plotting=False):
         return None, None, None, None
 
 
-async def async_state_requests(object_id, state_id, epoch, timestep=150):
+async def async_state_requests(
+    object_id: str, state_id: str, epoch: List[int], timestep=150
+) -> tal.TruthAnalysis:
     """Group all API requests needed for state error estimation."""
     # Initializing object
     id_data_TO = await async_id_data(object_id)  # Id data of a truth object
@@ -597,7 +617,12 @@ async def async_state_requests(object_id, state_id, epoch, timestep=150):
     return TO
 
 
-def truth_analysis_errors(truth_object):
+def truth_analysis_errors(
+    truth_object: tal.TruthAnalysis,
+) -> Union(
+    tuple[float, float, float, float, float, float, float],
+    tuple[None, None, None, None, None, None, None],
+):
     """Second part of original state_error function. Designed to not contain API requests."""
     try:  # handling the exception that there are no ILRS truth files to download from S3
         (
@@ -617,7 +642,9 @@ def truth_analysis_errors(truth_object):
         return None, None, None, None, None, None, None
 
 
-def collections_of_truth_state_errors(ILRS_target_list, epoch, days_from_epoch):
+def collections_of_truth_state_errors(
+    ILRS_target_list: List[str], epoch: List[int], days_from_epoch: int
+) -> tuple[float, float, float, float, float, float, float]:
     """Collects all errors for a given list of ILRS targets and dates and returns them in the form of distributions."""
 
     state_array = collect_all_states(
@@ -683,8 +710,3 @@ def collections_of_truth_state_errors(ILRS_target_list, epoch, days_from_epoch):
         Vi_err_collection,
         Vc_err_collection,
     )
-
-
-# Initialize orekit
-# orekit_vm = orekit.initVM()
-# setup_orekit_curdir("/Users/gkeramidas/Projects/ilrs_uncertainty_estimation/leolabs-config-data-dynamic/")

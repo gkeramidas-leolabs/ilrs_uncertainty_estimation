@@ -3,19 +3,23 @@ This module contains a class for comparing LeoLabs states to known sources
 of truth.
 """
 import sys
+from pathlib import Path
 
-sys.path.append("/Users/gkeramidas/Projects/od-master/leo-backend-od")
+leo_backend_od_path = Path("/Users/gkeramidas/Projects/od-master/leo-backend-od")
+sys.path.append(str(leo_backend_od_path))
 
 import re
 import os
 import time
 from datetime import datetime, timedelta, timezone
 from io import BytesIO
+from typing import Dict, List, Any
 
 import numpy as np
 import matplotlib.pyplot as plt
+import orekit
+from orekit.pyhelpers import setup_orekit_curdir
 
-# import orekit # ilrs complains about org.orekit.time
 from odlib.ilrs import TruthEphemerisManager
 from odlib.od_utils.frame_conversion import eci_to_rtn_rotation_matrix
 
@@ -25,6 +29,14 @@ from utilities.od_logging import OptionalLog
 
 import error_retrieval as er
 
+# Initialize orekit
+orekit_vm = orekit.initVM()
+setup_orekit_curdir(
+    "/Users/gkeramidas/Projects/ilrs_uncertainty_estimation/leolabs-config-data-dynamic/"
+)
+
+truth_path = Path("/Users/gkeramidas/Projects/ilrs_uncertainty_estimation/truth")
+
 
 class TruthAnalysis(OptionalLog):
     """
@@ -33,9 +45,9 @@ class TruthAnalysis(OptionalLog):
 
     def __init__(
         self,
-        id_data,
-        propagation,
-        ric_covariances,
+        id_data: Dict[str, Any],
+        propagation: List["truth_request.PropagationsContainer"],
+        ric_covariances: List["truth_request.RicCovariancesContainer"],
         logger=None,
         upload_truth_plot=False,
         flush_truth_files=True,
@@ -96,7 +108,7 @@ class TruthAnalysis(OptionalLog):
         else:
             self.ilrs_ephem_bucket = "leolabs-calibration-sources-test"
 
-    def ilrs_truth_analysis(self):
+    def ilrs_truth_analysis(self) -> tuple[Dict[str, Any], List[float]]:
         """
         Calculates position and velocity error in RIC frame between calculated
         target state and ILRS truth source. Returns mahalanobis distances for
@@ -123,7 +135,8 @@ class TruthAnalysis(OptionalLog):
             tzinfo=timezone.utc
         ).timestamp()  # Initial code
 
-        ilrs_err_vec = er.get_ilrs_uncertainty(self.leolabs_id)
+        # ilrs_err_vec = er.get_ilrs_uncertainty(self.leolabs_id)
+        ilrs_err_vec = [0, 0, 0, 0, 0, 0]
         ilrs_pos_err = ilrs_err_vec[0:3]
         ilrs_vel_err = ilrs_err_vec[3:]
 
@@ -241,7 +254,7 @@ class TruthAnalysis(OptionalLog):
 
         return normalized_errors, dist_list
 
-    def _get_truth_ephemeris_manager(self, num_days=5):
+    def _get_truth_ephemeris_manager(self, num_days=5) -> TruthEphemerisManager:
         """
         Generates a TruthEphemerisManager object from truth files.
         """
@@ -259,10 +272,10 @@ class TruthAnalysis(OptionalLog):
 
         return eph
 
-    def _get_relevant_truth_files(self, num_days=5):
+    def _get_relevant_truth_files(self, num_days=5, truth_path=truth_path) -> List[str]:
         """Look up in the truth directory of the target and fetch the files from the relevant dates to initialize the TruthEphemerisManager"""
 
-        target_truth_directory = "truth/" + str(self.leolabs_id) + "/"
+        target_truth_directory = str(truth_path) + "/" + str(self.leolabs_id) + "/"
 
         def string_from_date(dt):
             return str(dt.year)[-2:] + "%02d" % (dt.month,) + "%02d" % (dt.day,)
