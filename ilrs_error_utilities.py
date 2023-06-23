@@ -1,27 +1,40 @@
 import os
 from datetime import datetime
 import statistics
+from collections import namedtuple
+from typing import List, Dict, Any, Union
 
 import numpy as np
 import scipy.stats
 import scipy.optimize
+import orekit
+from orekit.pyhelpers import setup_orekit_curdir
 
-# import orekit
-# from orekit.pyhelpers import setup_orekit_curdir
 from odlib.ilrs import TruthEphemerisManager
-from od_utils.frame_conversion import eci_to_rtn_rotation_matrix
+from odlib.od_utils.frame_conversion import eci_to_rtn_rotation_matrix
 
 
 # Initialize orekit
-# orekit_vm = orekit.initVM()
-# setup_orekit_curdir("/Users/gkeramidas/Projects/ilrs_uncertainty_estimation/leolabs-config-data-dynamic/")
-
-
-"""Class that takes truth ephemeris objects with their metadata."""
+orekit_vm = orekit.initVM()
+setup_orekit_curdir(
+    "/Users/gkeramidas/Projects/ilrs_uncertainty_estimation/leolabs-config-data-dynamic/"
+)
 
 
 class tephem:
-    def __init__(self, year, month, day, ephem, name, ftype):
+    """
+    Class that takes truth ephemeris objects with their metadata.
+    """
+
+    def __init__(
+        self,
+        year: int,
+        month: int,
+        day: int,
+        ephem: TruthEphemerisManager,
+        name: str,
+        ftype: str,
+    ):
         self.year = year
         self.month = month
         self.day = day
@@ -30,19 +43,16 @@ class tephem:
         self.ftype = ftype
 
 
-"""Calculates epoch unix from the date of epoch."""
-
-
-def calculate_epoch_unix(year, month, day):
+def calculate_epoch_unix(year: int, month: int, day: int) -> float:
+    """Calculates epoch unix from the date of epoch."""
     epoch_dt = datetime(year, month, day)
     epoch_unix = (epoch_dt - datetime(1970, 1, 1, 0, 0, 0)).total_seconds()
     return epoch_unix
 
 
-"""Takes one day and returns the next one. No leap years."""
+def next_day(year: int, month: int, day: int) -> tuple[int, int, int]:
+    """Takes one day and returns the next one. No leap years."""
 
-
-def next_day(year, month, day):
     day_list = [int(i) for i in np.linspace(1, 31, 31)]
     month_list = [int(i) for i in np.linspace(1, 12, 12)]
 
@@ -68,10 +78,9 @@ def next_day(year, month, day):
     return next_year, next_month, next_day
 
 
-"""Takes an epoch and returns the previous day. No leap years."""
+def previous_day(year: int, month: int, day: int) -> tuple[int, int, int]:
+    """Takes an epoch and returns the previous day. No leap years."""
 
-
-def previous_day(year, month, day):
     day_list = [int(i) for i in np.linspace(1, 31, 31)]
     month_list = [int(i) for i in np.linspace(1, 12, 12)]
 
@@ -98,10 +107,9 @@ def previous_day(year, month, day):
     return prev_year, prev_month, prev_day
 
 
-"""Takes epoch date and gives the looks as many days back to find the base date."""
+def base_date(epoch: List[int], num_days: int) -> tuple[int, int, int]:
+    """Takes epoch date and looks as many days back to find the base date."""
 
-
-def base_date(epoch, num_days):
     ep_year = epoch[0]
     ep_month = epoch[1]
     ep_day = epoch[2]
@@ -112,50 +120,66 @@ def base_date(epoch, num_days):
     return ep_year, ep_month, ep_day
 
 
-"""Finds ephemeris object based on epoch and file type."""
+def find_ephem(
+    ephem_list: List[TruthEphemerisManager], year: int, month: int, day: int, ftype: str
+) -> Union(TruthEphemerisManager, None):
+    """Finds ephemeris object based on epoch and file type."""
 
-
-def find_ephem(ephem_list, year, month, day, ftype):
     year = int("".join(list(str(year)))[2:])
-    for eph in ephem_list:
-        if (
-            eph.year == year
+
+    chosen_ephems = filter(
+        lambda eph: eph.year == year
+        and eph.month == month
+        and eph.day == day
+        and eph.ftype == ftype,
+        ephem_list,
+    )
+
+    return next(chosen_ephems, None)
+
+
+def locate_ephemerides_for_date(
+    ephem_list: List[TruthEphemerisManager],
+    year: int,
+    month: int,
+    day: int,
+    prov_list: List[str],
+) -> List[TruthEphemerisManager]:
+    """Finds all ephemerides of a certain date."""
+
+    candidate_ephem = list(
+        filter(
+            lambda eph: eph.year == year
             and eph.month == month
             and eph.day == day
-            and eph.ftype == ftype
-        ):
-            return eph
+            and eph.ftype in prov_list,
+            ephem_list,
+        )
+    )
 
-
-"""Finds all ephemerides of a certain date."""
-
-
-def locate_ephemerides_for_date(ephem_list, year, month, day, prov_list):
-    candidate_ephem = []
-    for eph in ephem_list:
-        if (
-            eph.year == year
-            and eph.month == month
-            and eph.day == day
-            and eph.ftype in prov_list
-        ):
-            candidate_ephem.append(eph)
     return candidate_ephem
 
 
-"""Selects preferred ephemeris type, if it exists."""
+def get_preferred_ephemeris_type(
+    candidate_ephem_list: List[TruthEphemerisManager], preferred_prov: str
+) -> TruthEphemerisManager:
+    """Selects preferred ephemeris type, if it exists."""
+
+    eph = filter(lambda eph: eph.ftype == preferred_prov, candidate_ephem_list)
+
+    return next(eph)
 
 
-def get_preferred_ephemeris_type(candidate_ephem_list, preferred_prov):
-    for eph in candidate_ephem_list:
-        if eph.ftype == preferred_prov:
-            return eph
+def get_ephemeris_for_date(
+    ephem_list: List[TruthEphemerisManager],
+    year: int,
+    month: int,
+    day: int,
+    prov_list: List[str],
+    preferred_prov: str,
+) -> TruthEphemerisManager:
+    """Fetches the best ephemeris of a certain date. Returns zero is no ephemeris exists."""
 
-
-"""Fetches the best ephemeris of a certain date. Returns zero is no ephemeris exists."""
-
-
-def get_ephemeris_for_date(ephem_list, year, month, day, prov_list, preferred_prov):
     candidate_ephems = locate_ephemerides_for_date(
         ephem_list, year, month, day, prov_list
     )
@@ -164,13 +188,24 @@ def get_ephemeris_for_date(ephem_list, year, month, day, prov_list, preferred_pr
     if len(candidate_ephems) == 1:
         return candidate_ephems[0]
     if len(candidate_ephems) > 1:
+
         return get_preferred_ephemeris_type(candidate_ephems, preferred_prov)
 
 
-"""Fetches ephems of the same type for consecutive days."""
-
-
-def fetch_consecutive_ephems(ephem_list, year, month, day, prov_list, preferred_prov):
+def fetch_consecutive_ephems(
+    ephem_list: List[TruthEphemerisManager],
+    year: int,
+    month: int,
+    day: int,
+    prov_list: List[str],
+    preferred_prov: str,
+) -> tuple[
+    TruthEphemerisManager,
+    TruthEphemerisManager,
+    TruthEphemerisManager,
+    TruthEphemerisManager,
+]:
+    """Fetches ephems of the same type for consecutive days."""
 
     one_year, one_month, one_day = previous_day(year, month, day)
     two_year, two_month, two_day = previous_day(one_year, one_month, one_day)
@@ -197,29 +232,49 @@ def fetch_consecutive_ephems(ephem_list, year, month, day, prov_list, preferred_
     return base_ephem, one_ephem, two_ephem, three_ephem
 
 
-"""Finds the error percentile from a single day of error observations."""
+def rms(L: List[float]) -> float:
+    """Takes a list of values and calculates the RMS value."""
+    L2 = np.square(np.asarray(L))
+    L2m = np.mean(L2)
+    RMS = np.sqrt(L2m)
+
+    return RMS
 
 
-def max_conf_day(error_list, percentile):
-    return np.percentile(error_list, percentile, method="closest_observation")
+def day_stats(L: List[tuple]) -> List[tuple[float, float]]:
+    """Takes a list containing repeated tuples (here, they are triplets but the function is more general) from a series of observations, breaks it up in n lists
+    for each dimension and calculates and returns a list of tuples of RMS and std values of each dimension of this series of observations.
+    The input list is of the form [[x1,y1,z1],[x2,y2,z2],...] and the output list is of the form [(x_rms,x_std),(y_rms,y_std),(z_rms,z_std)].
+    """
+    rms_list = list(map(rms, zip(*L)))
+    std_list = list(map(statistics.stdev, zip(*L)))
+
+    return list(zip(rms_list, std_list))
 
 
-"""Function that compares ephemeris objects from different providers."""
-
-
-def compare_eph(ephem_list, year, month, day, length, prov1, prov2):
+def compare_eph(
+    ephem_list: List[tephem],
+    year: int,
+    month: int,
+    day: int,
+    length: int,
+    prov1: str,
+    prov2: str,
+):
+    """Function that compares ephemeris objects from different providers over a certain period of time.
+    It return 4 lists (ECI/RIC position/velocity) which contain tuples of (RMS,std) of each dimension for each of the days over which the comparison takes place.
+    The returned lists look like [[(x1_rms,x1_std),(y1_rms,y1_std),(z1_rms,z1_std)],[(x2_rms,x2_std),(y2_rms,y2_std),(z2_rms,z2_std)], ...].
+    """
     n_year = year
     n_month = month
     n_day = day
 
-    prov1_unc_X = []
-    prov2_unc_X = []
-    prov1_unc_Y = []
-    prov2_unc_Y = []
-    prov1_unc_Z = []
-    prov2_unc_Z = []
+    ECI_pos_unc = []
+    ECI_vel_unc = []
+    RIC_pos_unc = []
+    RIC_vel_unc = []
 
-    for i in range(length):
+    for _ in range(length):
         prov1_eph_obj = find_ephem(ephem_list, n_year, n_month, n_day, prov1)
         try:
             print("hts:", prov1_eph_obj.name)
@@ -246,251 +301,28 @@ def compare_eph(ephem_list, year, month, day, length, prov1, prov2):
         epoch_unix = calculate_epoch_unix(n_year, n_month, n_day)
 
         try:
-            dX1, dY1, dZ1, dR1, dI1, dC1, dX2, dY2, dZ2, dR2, dI2, dC2 = prov_mean_diff(
+            dpECI, dpRIC, dvECI, dvRIC = prov_mean_diff(
                 prov1_eph_obj.ephem, prov2_eph_obj.ephem, epoch_unix
             )
         except:
             n_year, n_month, n_day = next_day(n_year, n_month, n_day)
             continue
 
-        prov1_unc_X.append(abs(max_conf_day(dX1, 95)))
-        prov2_unc_X.append(abs(max_conf_day(dX2, 95)))
-        prov1_unc_Y.append(abs(max_conf_day(dY1, 95)))
-        prov2_unc_Y.append(abs(max_conf_day(dY2, 95)))
-        prov1_unc_Z.append(abs(max_conf_day(dZ1, 95)))
-        prov2_unc_Z.append(abs(max_conf_day(dZ2, 95)))
+        ECI_pos_unc.append(day_stats(dpECI))
+        ECI_vel_unc.append(day_stats(dvECI))
+        RIC_pos_unc.append(day_stats(dpRIC))
+        RIC_vel_unc.append(day_stats(dvRIC))
 
         n_year, n_month, n_day = next_day(n_year, n_month, n_day)
         print("checked mean")
         print("next month:", n_month)
         print("next day:", n_day)
-    return prov1_unc_X, prov2_unc_X, prov1_unc_Y, prov2_unc_Y, prov1_unc_Z, prov2_unc_Z
 
-
-def compare_eph_RIC(ephem_list, year, month, day, length, prov1, prov2):
-    n_year = year
-    n_month = month
-    n_day = day
-
-    prov1_unc_R = []
-    prov2_unc_R = []
-    prov1_unc_I = []
-    prov2_unc_I = []
-    prov1_unc_C = []
-    prov2_unc_C = []
-
-    for i in range(length):
-        prov1_eph_obj = find_ephem(ephem_list, n_year, n_month, n_day, prov1)
-        try:
-            print("hts:", prov1_eph_obj.name)
-        except:
-            prov1_eph_obj = find_ephem(ephem_list, n_year, n_month, n_day, "mcc")
-            try:
-                print("mcc in place of hts:", prov1_eph_obj.name)
-            except:
-                print("Missed Day")
-                n_year, n_month, n_day = next_day(n_year, n_month, n_day)
-                continue
-
-        prov2_eph_obj = find_ephem(ephem_list, n_year, n_month, n_day, prov2)
-        try:
-            print("sgf:", prov2_eph_obj.name)
-        except:
-            prov2_eph_obj = find_ephem(ephem_list, n_year, n_month, n_day, "mcc")
-            try:
-                print("mcc in place of sgf:", prov2_eph_obj.name)
-            except:
-                print("Missed Day")
-                n_year, n_month, n_day = next_day(n_year, n_month, n_day)
-                continue
-        epoch_unix = calculate_epoch_unix(n_year, n_month, n_day)
-
-        try:
-            dX1, dY1, dZ1, dR1, dI1, dC1, dX2, dY2, dZ2, dR2, dI2, dC2 = prov_mean_diff(
-                prov1_eph_obj.ephem, prov2_eph_obj.ephem, epoch_unix
-            )
-        except:
-            n_year, n_month, n_day = next_day(n_year, n_month, n_day)
-            continue
-
-        prov1_unc_R.append(0.707 * abs(max(dR1)))
-        prov2_unc_R.append(0.707 * abs(max(dR2)))
-        prov1_unc_I.append(0.707 * abs(max(dI1)))
-        prov2_unc_I.append(0.707 * abs(max(dI2)))
-        prov1_unc_C.append(0.707 * abs(max(dC1)))
-        prov2_unc_C.append(0.707 * abs(max(dC2)))
-
-        n_year, n_month, n_day = next_day(n_year, n_month, n_day)
-        print("checked mean")
-        print("next month:", n_month)
-        print("next day:", n_day)
-    return prov1_unc_R, prov2_unc_R, prov1_unc_I, prov2_unc_I, prov1_unc_C, prov2_unc_C
-
-
-"""Function that compares ephemeris objects from different providers for velocity."""
-
-
-def compare_eph_velocity(ephem_list, year, month, day, length, prov1, prov2):
-    n_year = year
-    n_month = month
-    n_day = day
-
-    prov1_unc_VX = []
-    prov2_unc_VX = []
-    prov1_unc_VY = []
-    prov2_unc_VY = []
-    prov1_unc_VZ = []
-    prov2_unc_VZ = []
-
-    for i in range(length):
-        prov1_eph_obj = find_ephem(ephem_list, n_year, n_month, n_day, prov1)
-        try:
-            print("hts:", prov1_eph_obj.name)
-        except:
-            prov1_eph_obj = find_ephem(ephem_list, n_year, n_month, n_day, "mcc")
-            try:
-                print("mcc in place of hts:", prov1_eph_obj.name)
-            except:
-                print("Missed Day")
-                n_year, n_month, n_day = next_day(n_year, n_month, n_day)
-                continue
-
-        prov2_eph_obj = find_ephem(ephem_list, n_year, n_month, n_day, prov2)
-        try:
-            print("sgf:", prov2_eph_obj.name)
-        except:
-            prov2_eph_obj = find_ephem(ephem_list, n_year, n_month, n_day, "mcc")
-            try:
-                print("mcc in place of sgf:", prov2_eph_obj.name)
-            except:
-                print("Missed Day")
-                n_year, n_month, n_day = next_day(n_year, n_month, n_day)
-                continue
-        epoch_unix = calculate_epoch_unix(n_year, n_month, n_day)
-
-        try:
-            (
-                dVX1,
-                dVY1,
-                dVZ1,
-                dVR1,
-                dVI1,
-                dVC1,
-                dVX2,
-                dVY2,
-                dVZ2,
-                dVR2,
-                dVI2,
-                dVC2,
-            ) = prov_mean_vel_diff(prov1_eph_obj.ephem, prov2_eph_obj.ephem, epoch_unix)
-        except:
-            n_year, n_month, n_day = next_day(n_year, n_month, n_day)
-            continue
-
-        prov1_unc_VX.append(abs(max_conf_day(dVX1, 95)))
-        prov2_unc_VX.append(abs(max_conf_day(dVX2, 95)))
-        prov1_unc_VY.append(abs(max_conf_day(dVY1, 95)))
-        prov2_unc_VY.append(abs(max_conf_day(dVY2, 95)))
-        prov1_unc_VZ.append(abs(max_conf_day(dVZ1, 95)))
-        prov2_unc_VZ.append(abs(max_conf_day(dVZ2, 95)))
-
-        n_year, n_month, n_day = next_day(n_year, n_month, n_day)
-        print("checked mean")
-        print("next month:", n_month)
-        print("next day:", n_day)
-    return (
-        prov1_unc_VX,
-        prov2_unc_VX,
-        prov1_unc_VY,
-        prov2_unc_VY,
-        prov1_unc_VZ,
-        prov2_unc_VZ,
-    )
-
-
-def compare_eph_velocity_RIC(ephem_list, year, month, day, length, prov1, prov2):
-    n_year = year
-    n_month = month
-    n_day = day
-
-    prov1_unc_VR = []
-    prov2_unc_VR = []
-    prov1_unc_VI = []
-    prov2_unc_VI = []
-    prov1_unc_VC = []
-    prov2_unc_VC = []
-
-    for i in range(length):
-        prov1_eph_obj = find_ephem(ephem_list, n_year, n_month, n_day, prov1)
-        try:
-            print("hts:", prov1_eph_obj.name)
-        except:
-            prov1_eph_obj = find_ephem(ephem_list, n_year, n_month, n_day, "mcc")
-            try:
-                print("mcc in place of hts:", prov1_eph_obj.name)
-            except:
-                print("Missed Day")
-                n_year, n_month, n_day = next_day(n_year, n_month, n_day)
-                continue
-
-        prov2_eph_obj = find_ephem(ephem_list, n_year, n_month, n_day, prov2)
-        try:
-            print("sgf:", prov2_eph_obj.name)
-        except:
-            prov2_eph_obj = find_ephem(ephem_list, n_year, n_month, n_day, "mcc")
-            try:
-                print("mcc in place of sgf:", prov2_eph_obj.name)
-            except:
-                print("Missed Day")
-                n_year, n_month, n_day = next_day(n_year, n_month, n_day)
-                continue
-        epoch_unix = calculate_epoch_unix(n_year, n_month, n_day)
-
-        try:
-            (
-                dVX1,
-                dVY1,
-                dVZ1,
-                dVR1,
-                dVI1,
-                dVC1,
-                dVX2,
-                dVY2,
-                dVZ2,
-                dVR2,
-                dVI2,
-                dVC2,
-            ) = prov_mean_vel_diff(prov1_eph_obj.ephem, prov2_eph_obj.ephem, epoch_unix)
-        except:
-            n_year, n_month, n_day = next_day(n_year, n_month, n_day)
-            continue
-
-        prov1_unc_VR.append(0.707 * abs(max(dVR1)))
-        prov2_unc_VR.append(0.707 * abs(max(dVR2)))
-        prov1_unc_VI.append(0.707 * abs(max(dVI1)))
-        prov2_unc_VI.append(0.707 * abs(max(dVI2)))
-        prov1_unc_VC.append(0.707 * abs(max(dVC1)))
-        prov2_unc_VC.append(0.707 * abs(max(dVC2)))
-
-        n_year, n_month, n_day = next_day(n_year, n_month, n_day)
-        print("checked mean")
-        print("next month:", n_month)
-        print("next day:", n_day)
-    return (
-        prov1_unc_VR,
-        prov2_unc_VR,
-        prov1_unc_VI,
-        prov2_unc_VI,
-        prov1_unc_VC,
-        prov2_unc_VC,
-    )
-
-
-"""Calculates differences between two ephemerides."""
+    return ECI_pos_unc, ECI_vel_unc, RIC_pos_unc, RIC_vel_unc
 
 
 def single_prov_diff(base_eph, secondary_eph, epoch_unix):
-
+    """Calculates differences between two ephemerides."""
     timestep = 150
     one_day = 24 * 60 * 60 / timestep
 
@@ -527,11 +359,8 @@ def single_prov_diff(base_eph, secondary_eph, epoch_unix):
     return dX, dY, dZ, dR, dI, dC
 
 
-"""Calculates velocity differences between two ephemerides."""
-
-
 def single_prov_vel_diff(base_eph, secondary_eph, epoch_unix):
-
+    """Calculates velocity differences between two ephemerides."""
     timestep = 150
     one_day = 24 * 60 * 60 / timestep
 
@@ -568,10 +397,8 @@ def single_prov_vel_diff(base_eph, secondary_eph, epoch_unix):
     return dVX, dVY, dVZ, dVR, dVI, dVC
 
 
-"""Instantiates tephem objects from their filename."""
-
-
-def inst_tephem(directory, file):
+def tephem_factory(directory: str, file: str) -> tephem:
+    """Instantiates tephem objects from their filename."""
     name = str(file)
     date = file.split("_")[-2]
     year = "".join(list(date)[0:2])
@@ -582,103 +409,31 @@ def inst_tephem(directory, file):
         eph = 0  # Initialize it with something since TEM breaks with dgf files.
     else:
         eph = TruthEphemerisManager([directory + file])
+
     return tephem(int(year), int(month), int(day), eph, str(name), str(ftype))
 
 
-"""Puts tephem objects in a list."""
-
-
-def truth_ephems_from_directory(directory):
-    ephemerides = []
-
-    for file in os.listdir(directory):
-        tephem_obj = inst_tephem(directory, file)
-        ephemerides.append(tephem_obj)
+def truth_ephems_from_directory(directory: str) -> List[tephem]:
+    """Puts tephem objects in a list."""
+    file_list = os.listdir(directory)
+    ephemerides = list(map(lambda x: tephem_factory(directory, x), file_list))
 
     return ephemerides
 
 
-"""Calculates differences between two ephemerides."""
-
-
-def prov_mean_diff(prov1_eph, prov2_eph, epoch_unix):
+def prov_mean_diff(
+    prov1_eph: TruthEphemerisManager,
+    prov2_eph: TruthEphemerisManager,
+    epoch_unix: float,
+) -> tuple[List[float], List[float], List[float], List[float]]:
+    """Calculates differences between two ephemerides."""
     timestep = 150
     one_day = 24 * 60 * 60 / timestep
 
-    dX1 = []
-    dY1 = []
-    dZ1 = []
-    dR1 = []
-    dI1 = []
-    dC1 = []
-    dX2 = []
-    dY2 = []
-    dZ2 = []
-    dR2 = []
-    dI2 = []
-    dC2 = []
-
-    curr_time = 0
-
-    for i in range(int(one_day)):
-        mean_position = (
-            prov1_eph.position_at_unix_time(epoch_unix + curr_time)
-            + prov2_eph.position_at_unix_time(epoch_unix + curr_time)
-        ) / 2
-        ECI1_diff = mean_position - prov1_eph.position_at_unix_time(
-            epoch_unix + curr_time
-        )
-        ECI2_diff = mean_position - prov2_eph.position_at_unix_time(
-            epoch_unix + curr_time
-        )
-
-        RTN = eci_to_rtn_rotation_matrix(
-            mean_position,
-            prov1_eph.derived_velocity_at_unix_time(epoch_unix + curr_time),
-        )
-
-        RIC1_diff = np.matmul(RTN, ECI1_diff)
-        RIC2_diff = np.matmul(RTN, ECI2_diff)
-
-        dX1.append(ECI1_diff[0])
-        dY1.append(ECI1_diff[1])
-        dZ1.append(ECI1_diff[2])
-
-        dR1.append(RIC1_diff[0])
-        dI1.append(RIC1_diff[1])
-        dC1.append(RIC1_diff[2])
-
-        dX2.append(ECI2_diff[0])
-        dY2.append(ECI2_diff[1])
-        dZ2.append(ECI2_diff[2])
-
-        dR2.append(RIC2_diff[0])
-        dI2.append(RIC2_diff[1])
-        dC2.append(RIC2_diff[2])
-
-        curr_time += timestep
-    return dX1, dY1, dZ1, dR1, dI1, dC1, dX2, dY2, dZ2, dR2, dI2, dC2
-
-
-"""Calculates differences between two ephemerides."""
-
-
-def prov_mean_vel_diff(prov1_eph, prov2_eph, epoch_unix):
-    timestep = 150
-    one_day = 24 * 60 * 60 / timestep
-
-    dVX1 = []
-    dVY1 = []
-    dVZ1 = []
-    dVR1 = []
-    dVI1 = []
-    dVC1 = []
-    dVX2 = []
-    dVY2 = []
-    dVZ2 = []
-    dVR2 = []
-    dVI2 = []
-    dVC2 = []
+    dpECI = []
+    dpRIC = []
+    dvECI = []
+    dvRIC = []
 
     curr_time = 0
 
@@ -691,44 +446,38 @@ def prov_mean_vel_diff(prov1_eph, prov2_eph, epoch_unix):
             prov1_eph.derived_velocity_at_unix_time(epoch_unix + curr_time)
             + prov2_eph.derived_velocity_at_unix_time(epoch_unix + curr_time)
         ) / 2
-        ECI1_Vdiff = mean_velocity - prov1_eph.derived_velocity_at_unix_time(
-            epoch_unix + curr_time
+
+        mean_pdiff_ECI = (
+            prov1_eph.position_at_unix_time(epoch_unix + curr_time)
+            - prov2_eph.position_at_unix_time(epoch_unix + curr_time)
+        ) / 2
+        mean_vdiff_ECI = (
+            prov1_eph.derived_velocity_at_unix_time(epoch_unix + curr_time)
+            - prov2_eph.derived_velocity_at_unix_time(epoch_unix + curr_time)
+        ) / 2
+
+        RTN = eci_to_rtn_rotation_matrix(
+            mean_position,
+            mean_velocity,
         )
-        ECI2_Vdiff = mean_velocity - prov2_eph.derived_velocity_at_unix_time(
-            epoch_unix + curr_time
-        )
 
-        RTN = eci_to_rtn_rotation_matrix(mean_position, mean_velocity)
+        mean_pdiff_RIC = np.matmul(RTN, mean_pdiff_ECI)
+        mean_vdiff_RIC = np.matmul(RTN, mean_vdiff_ECI)
 
-        RIC1_Vdiff = np.matmul(RTN, ECI1_Vdiff)
-        RIC2_Vdiff = np.matmul(RTN, ECI2_Vdiff)
-
-        dVX1.append(ECI1_Vdiff[0])
-        dVY1.append(ECI1_Vdiff[1])
-        dVZ1.append(ECI1_Vdiff[2])
-
-        dVR1.append(RIC1_Vdiff[0])
-        dVI1.append(RIC1_Vdiff[1])
-        dVC1.append(RIC1_Vdiff[2])
-
-        dVX2.append(ECI2_Vdiff[0])
-        dVY2.append(ECI2_Vdiff[1])
-        dVZ2.append(ECI2_Vdiff[2])
-
-        dVR2.append(RIC2_Vdiff[0])
-        dVI2.append(RIC2_Vdiff[1])
-        dVC2.append(RIC2_Vdiff[2])
-
+        dpECI.append(mean_pdiff_ECI)
+        dpRIC.append(mean_pdiff_RIC)
+        dvECI.append(mean_vdiff_ECI)
+        dvRIC.append(mean_vdiff_RIC)
         curr_time += timestep
-    return dVX1, dVY1, dVZ1, dVR1, dVI1, dVC1, dVX2, dVY2, dVZ2, dVR2, dVI2, dVC2
 
-
-"""Compares ephems from 3 consecutive days over a single day."""
+    return dpECI, dpRIC, dvECI, dvRIC
 
 
 def compare_single_prov_ephems(
     ephem_list, year, month, day, length, prov_list, preferred_prov
 ):
+    """Compares ephems from 3 consecutive days over a single day."""
+
     n_year = year
     n_month = month
     n_day = day
@@ -809,12 +558,10 @@ def compare_single_prov_ephems(
     )
 
 
-"""Compares ephems from 3 consecutive days over a single day."""
-
-
 def compare_successive_ephems(
     ephem_list, year, month, day, length, prov_list, preferred_prov
 ):
+    """Compares ephems from 3 consecutive days over a single day."""
     n_year = year
     n_month = month
     n_day = day
@@ -847,12 +594,10 @@ def compare_successive_ephems(
     return unc_X1day, unc_Y1day, unc_Z1day
 
 
-"""Compares ephems from 3 consecutive days over a single day."""
-
-
 def compare_successive_ephems_velocity(
     ephem_list, year, month, day, length, prov_list, preferred_prov
 ):
+    """Compares ephems from 3 consecutive days over a single day."""
     n_year = year
     n_month = month
     n_day = day
@@ -887,28 +632,22 @@ def compare_successive_ephems_velocity(
     return unc_VX1day, unc_VY1day, unc_VZ1day
 
 
-"""Returns intercept from exponential fitting of the error between 3 days."""
-
-
 def exp_fit(uncertainty_list):
+    """Returns intercept from exponential fitting of the error between 3 days."""
     days_list = [1, 2, 3]
     _, intercept = np.polyfit(days_list, np.log(uncertainty_list), 1)
     return np.exp(intercept)
 
 
-"""Returns intercept from exponential fitting of the error between 3 days."""
-
-
 def lin_fit(uncertainty_list):
+    """Returns intercept from exponential fitting of the error between 3 days."""
     days_list = [1, 2, 3]
     _, intercept = np.polyfit(days_list, uncertainty_list, 1)
     return intercept
 
 
-"""Returns mode of the distribution of single day values. Assumes Gaussian kernel."""
-
-
 def calc_shgo_mode(data):
+    """Returns mode of the distribution of single day values. Assumes Gaussian kernel."""
     distribution = scipy.stats.gaussian_kde(data)
 
     def objective(x):
@@ -919,10 +658,8 @@ def calc_shgo_mode(data):
     return solution.x[0]
 
 
-"""Calculates the final uncertainty value from the distribution of uncertainties from 30 days of observations."""
-
-
 def final_uncertainty(days_errors):
+    """Calculates the final uncertainty value from the distribution of uncertainties from 30 days of observations."""
     try:
         unc = calc_shgo_mode(days_errors) + 1.96 * (statistics.pstdev(days_errors))
     except:
@@ -930,10 +667,8 @@ def final_uncertainty(days_errors):
     return unc
 
 
-"""Calculates the final uncertianty as a confidence interval (Cox method) from data coming from a log-normal distribution."""
-
-
 def log_normal_right_confidence_interval(days_errors):
+    """Calculates the final uncertianty as a confidence interval (Cox method) from data coming from a log-normal distribution."""
     N = len(days_errors)
     lnX = np.log(days_errors)
     mu = np.mean(lnX)
@@ -944,10 +679,8 @@ def log_normal_right_confidence_interval(days_errors):
     )
 
 
-"""Calculates the final uncertainty value from the distribution of uncertainties from 30 days of observations."""
-
-
 def final_uncertainty_gaussian(days_errors):
+    """Calculates the final uncertainty value from the distribution of uncertainties from 30 days of observations."""
     try:
         unc = np.mean(days_errors) + 1.96 * (statistics.pstdev(days_errors))
     except:
