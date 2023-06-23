@@ -1,8 +1,7 @@
 import os
 from datetime import datetime
 import statistics
-from collections import namedtuple
-from typing import List, Dict, Any, Union
+from typing import List, Union
 
 import numpy as np
 import scipy.stats
@@ -45,13 +44,17 @@ class tephem:
 
 def calculate_epoch_unix(year: int, month: int, day: int) -> float:
     """Calculates epoch unix from the date of epoch."""
+
     epoch_dt = datetime(year, month, day)
     epoch_unix = (epoch_dt - datetime(1970, 1, 1, 0, 0, 0)).total_seconds()
     return epoch_unix
 
 
 def next_day(year: int, month: int, day: int) -> tuple[int, int, int]:
-    """Takes one day and returns the next one. No leap years."""
+    """Takes one day and returns the next one. No leap years.
+
+    TODO: ADD leap years
+    """
 
     day_list = [int(i) for i in np.linspace(1, 31, 31)]
     month_list = [int(i) for i in np.linspace(1, 12, 12)]
@@ -79,7 +82,10 @@ def next_day(year: int, month: int, day: int) -> tuple[int, int, int]:
 
 
 def previous_day(year: int, month: int, day: int) -> tuple[int, int, int]:
-    """Takes an epoch and returns the previous day. No leap years."""
+    """Takes an epoch and returns the previous day. No leap years.
+
+    TODO: Add leap years
+    """
 
     day_list = [int(i) for i in np.linspace(1, 31, 31)]
     month_list = [int(i) for i in np.linspace(1, 12, 12)]
@@ -188,8 +194,11 @@ def get_ephemeris_for_date(
     if len(candidate_ephems) == 1:
         return candidate_ephems[0]
     if len(candidate_ephems) > 1:
-
-        return get_preferred_ephemeris_type(candidate_ephems, preferred_prov)
+        preferred_ephem = get_preferred_ephemeris_type(candidate_ephems, preferred_prov)
+        if preferred_prov:
+            return preferred_prov
+        else:
+            return candidate_ephems[0]
 
 
 def fetch_consecutive_ephems(
@@ -199,41 +208,27 @@ def fetch_consecutive_ephems(
     day: int,
     prov_list: List[str],
     preferred_prov: str,
-) -> tuple[
-    TruthEphemerisManager,
-    TruthEphemerisManager,
-    TruthEphemerisManager,
-    TruthEphemerisManager,
-]:
-    """Fetches ephems of the same type for consecutive days."""
+) -> tuple[TruthEphemerisManager, TruthEphemerisManager,]:
+    """Fetches ephems of the same type for consecutive days, the day of and one day prior."""
 
     one_year, one_month, one_day = previous_day(year, month, day)
-    two_year, two_month, two_day = previous_day(one_year, one_month, one_day)
-    three_year, three_month, three_day = previous_day(two_year, two_month, two_day)
 
-    year = int("".join(list(str(year)))[2:])
+    base_year = int("".join(list(str(year)))[2:])
     one_year = int("".join(list(str(one_year)))[2:])
-    two_year = int("".join(list(str(two_year)))[2:])
-    three_year = int("".join(list(str(three_year)))[2:])
 
     base_ephem = get_ephemeris_for_date(
-        ephem_list, year, month, day, prov_list, preferred_prov
+        ephem_list, base_year, month, day, prov_list, preferred_prov
     )
     one_ephem = get_ephemeris_for_date(
         ephem_list, one_year, one_month, one_day, prov_list, preferred_prov
     )
-    two_ephem = get_ephemeris_for_date(
-        ephem_list, two_year, two_month, two_day, prov_list, preferred_prov
-    )
-    three_ephem = get_ephemeris_for_date(
-        ephem_list, three_year, three_month, three_day, prov_list, preferred_prov
-    )
 
-    return base_ephem, one_ephem, two_ephem, three_ephem
+    return base_ephem, one_ephem
 
 
 def rms(L: List[float]) -> float:
     """Takes a list of values and calculates the RMS value."""
+
     L2 = np.square(np.asarray(L))
     L2m = np.mean(L2)
     RMS = np.sqrt(L2m)
@@ -244,7 +239,12 @@ def rms(L: List[float]) -> float:
 def day_stats(L: List[tuple]) -> List[tuple[float, float]]:
     """Takes a list containing repeated tuples (here, they are triplets but the function is more general) from a series of observations, breaks it up in n lists
     for each dimension and calculates and returns a list of tuples of RMS and std values of each dimension of this series of observations.
-    The input list is of the form [[x1,y1,z1],[x2,y2,z2],...] and the output list is of the form [(x_rms,x_std),(y_rms,y_std),(z_rms,z_std)].
+
+    Args:
+        List of arbitrary length of the form [[x1,y1,z1],[x2,y2,z2],...]
+
+    Returns:
+        List of the form [(x_rms,x_std),(y_rms,y_std),(z_rms,z_std)]
     """
     rms_list = list(map(rms, zip(*L)))
     std_list = list(map(statistics.stdev, zip(*L)))
@@ -252,7 +252,74 @@ def day_stats(L: List[tuple]) -> List[tuple[float, float]]:
     return list(zip(rms_list, std_list))
 
 
-def compare_eph(
+def prov_mean_diff(
+    prov1_eph: TruthEphemerisManager,
+    prov2_eph: TruthEphemerisManager,
+    epoch_unix: float,
+) -> tuple[List[float], List[float], List[float], List[float]]:
+    """Calculates differences between two ephemerides over a single day.
+
+    Args:
+        prov1_eph: Ephemeris object from the first provider,
+        prov2_eph: Ephemeris object from the second provider,
+        epoch_unix: Unix time from when the comparison starts
+
+    Returns:
+        dpECI: List of position residuals (differences) in ECI coordinates,
+        dvECI: List of velocity residuals (differences) in ECI coordinates,
+        dpRIC: List of position residuals (differences) in RIC coordinates,
+        dvRIC: List of velocity residuals (differences) in RIC coordinates,
+
+        The lists are of the form [[dx1,dy1,dz1],[dx2,dy2,dz2],...] for each time step.
+
+    """
+    timestep = 150
+    one_day = 24 * 60 * 60 / timestep
+
+    dpECI = []
+    dpRIC = []
+    dvECI = []
+    dvRIC = []
+
+    curr_time = 0
+
+    for _ in range(int(one_day)):
+        mean_position = (
+            prov1_eph.position_at_unix_time(epoch_unix + curr_time)
+            + prov2_eph.position_at_unix_time(epoch_unix + curr_time)
+        ) / 2
+        mean_velocity = (
+            prov1_eph.derived_velocity_at_unix_time(epoch_unix + curr_time)
+            + prov2_eph.derived_velocity_at_unix_time(epoch_unix + curr_time)
+        ) / 2
+
+        mean_pdiff_ECI = (
+            prov1_eph.position_at_unix_time(epoch_unix + curr_time)
+            - prov2_eph.position_at_unix_time(epoch_unix + curr_time)
+        ) / 2
+        mean_vdiff_ECI = (
+            prov1_eph.derived_velocity_at_unix_time(epoch_unix + curr_time)
+            - prov2_eph.derived_velocity_at_unix_time(epoch_unix + curr_time)
+        ) / 2
+
+        RTN = eci_to_rtn_rotation_matrix(
+            mean_position,
+            mean_velocity,
+        )
+
+        mean_pdiff_RIC = np.matmul(RTN, mean_pdiff_ECI)
+        mean_vdiff_RIC = np.matmul(RTN, mean_vdiff_ECI)
+
+        dpECI.append(mean_pdiff_ECI)
+        dpRIC.append(mean_pdiff_RIC)
+        dvECI.append(mean_vdiff_ECI)
+        dvRIC.append(mean_vdiff_RIC)
+        curr_time += timestep
+
+    return dpECI, dpRIC, dvECI, dvRIC
+
+
+def compare_different_provider_ephems_over_time(
     ephem_list: List[tephem],
     year: int,
     month: int,
@@ -260,10 +327,27 @@ def compare_eph(
     length: int,
     prov1: str,
     prov2: str,
-):
+) -> tuple[
+    List[tuple[float, float]],
+    List[tuple[float, float]],
+    List[tuple[float, float]],
+    List[tuple[float, float]],
+]:
     """Function that compares ephemeris objects from different providers over a certain period of time.
-    It return 4 lists (ECI/RIC position/velocity) which contain tuples of (RMS,std) of each dimension for each of the days over which the comparison takes place.
-    The returned lists look like [[(x1_rms,x1_std),(y1_rms,y1_std),(z1_rms,z1_std)],[(x2_rms,x2_std),(y2_rms,y2_std),(z2_rms,z2_std)], ...].
+
+    Args:
+        ephem_list: list of tephem objects
+        year, month, day: the epoch of the start of the comparison study
+        length: the length in days of the comparison study
+        prov1, prov2: file extensions of preferred providers
+
+    Returns:
+        ECI_pos_unc: list of tuples with rms and std of day uncertainty in position in the ECI frame,
+        ECI_vel_unc: list of tuples with rms and std of day uncertainty in velocity in the ECI frame,
+        RIC_pos_unc: list of tuples with rms and std of day uncertainty in position in the RIC frame,
+        RIC_vel_unc: list of tuples with rms and std of day uncertainty in velocity in the RIC frame,
+
+        The returned lists are of the form [[(x1_rms,x1_std),(y1_rms,y1_std),(z1_rms,z1_std)],[(x2_rms,x2_std),(y2_rms,y2_std),(z2_rms,z2_std)], ...].
     """
     n_year = year
     n_month = month
@@ -321,60 +405,47 @@ def compare_eph(
     return ECI_pos_unc, ECI_vel_unc, RIC_pos_unc, RIC_vel_unc
 
 
-def single_prov_diff(base_eph, secondary_eph, epoch_unix):
-    """Calculates differences between two ephemerides."""
+def single_prov_diff(
+    base_eph: TruthEphemerisManager,
+    secondary_eph: TruthEphemerisManager,
+    epoch_unix: float,
+) -> tuple[
+    List[tuple[float, float]],
+    List[tuple[float, float]],
+    List[tuple[float, float]],
+    List[tuple[float, float]],
+]:
+    """Calculates differences between two ephemerides that belong to the same provider.
+
+    Args:
+        base_eph: Ephemeride from the day that the comparison will start,
+        secondary_eph: Ephemeride from the day before the comparison will start (will be extrapolated to the day of comparison),
+        epoch_unix: Time when the comparison will start
+
+    Returns:
+        ECI_pos_unc: list of tuples with rms and std of day uncertainty in position in the ECI frame,
+        ECI_vel_unc: list of tuples with rms and std of day uncertainty in velocity in the ECI frame,
+        RIC_pos_unc: list of tuples with rms and std of day uncertainty in position in the RIC frame,
+        RIC_vel_unc: list of tuples with rms and std of day uncertainty in velocity in the RIC frame
+
+        The returned lists are of the form [[(x1_rms,x1_std),(y1_rms,y1_std),(z1_rms,z1_std)],[(x2_rms,x2_std),(y2_rms,y2_std),(z2_rms,z2_std)], ...].
+    """
     timestep = 150
     one_day = 24 * 60 * 60 / timestep
 
-    dX = []
-    dY = []
-    dZ = []
-    dR = []
-    dI = []
-    dC = []
+    dpECI = []
+    dpRIC = []
+    dvECI = []
+    dvRIC = []
 
     curr_time = 0
 
-    for i in range(int(one_day)):
-        ECI_diff = base_eph.position_at_unix_time(
+    for _ in range(int(one_day)):
+        ECI_pdiff = base_eph.position_at_unix_time(
             epoch_unix + curr_time
         ) - secondary_eph.position_at_unix_time(epoch_unix + curr_time)
 
-        RTN = eci_to_rtn_rotation_matrix(
-            base_eph.position_at_unix_time(epoch_unix + curr_time),
-            base_eph.derived_velocity_at_unix_time(epoch_unix + curr_time),
-        )
-
-        RIC_diff = np.matmul(RTN, ECI_diff)
-
-        dX.append(ECI_diff[0])
-        dY.append(ECI_diff[1])
-        dZ.append(ECI_diff[2])
-
-        dR.append(RIC_diff[0])
-        dI.append(RIC_diff[1])
-        dC.append(RIC_diff[2])
-
-        curr_time += timestep
-    return dX, dY, dZ, dR, dI, dC
-
-
-def single_prov_vel_diff(base_eph, secondary_eph, epoch_unix):
-    """Calculates velocity differences between two ephemerides."""
-    timestep = 150
-    one_day = 24 * 60 * 60 / timestep
-
-    dVX = []
-    dVY = []
-    dVZ = []
-    dVR = []
-    dVI = []
-    dVC = []
-
-    curr_time = 0
-
-    for i in range(int(one_day)):
-        ECI_vel_diff = base_eph.derived_velocity_at_unix_time(
+        ECI_vdiff = base_eph.derived_velocity_at_unix_time(
             epoch_unix + curr_time
         ) - secondary_eph.derived_velocity_at_unix_time(epoch_unix + curr_time)
 
@@ -383,18 +454,78 @@ def single_prov_vel_diff(base_eph, secondary_eph, epoch_unix):
             base_eph.derived_velocity_at_unix_time(epoch_unix + curr_time),
         )
 
-        RIC_vel_diff = np.matmul(RTN, ECI_vel_diff)
+        RIC_pdiff = np.matmul(RTN, ECI_pdiff)
+        RIC_vdiff = np.matmul(RTN, ECI_vdiff)
 
-        dVX.append(ECI_vel_diff[0])
-        dVY.append(ECI_vel_diff[1])
-        dVZ.append(ECI_vel_diff[2])
-
-        dVR.append(RIC_vel_diff[0])
-        dVI.append(RIC_vel_diff[1])
-        dVC.append(RIC_vel_diff[2])
+        dpECI.append(ECI_pdiff)
+        dvECI.append(ECI_vdiff)
+        dpRIC.append(RIC_pdiff)
+        dvRIC.append(RIC_vdiff)
 
         curr_time += timestep
-    return dVX, dVY, dVZ, dVR, dVI, dVC
+    return dpECI, dvECI, dpRIC, dvRIC
+
+
+def compare_single_prov_ephems_over_time(
+    ephem_list: List[tephem],
+    year: int,
+    month: int,
+    day: int,
+    length: int,
+    prov_list: List[str],
+    preferred_prov: str,
+):
+    """Function that compares ephemeris objects from the same provider over a certain period of time.
+
+    Args:
+        ephem_list: list of tephem objects
+        year, month, day: the epoch of the start of the comparison study
+        length: the length in days of the comparison study
+        prov1, prov2: file extensions of preferred providers
+
+    Returns:
+        ECI_pos_unc: list of tuples with rms and std of day uncertainty in position in the ECI frame,
+        ECI_vel_unc: list of tuples with rms and std of day uncertainty in velocity in the ECI frame,
+        RIC_pos_unc: list of tuples with rms and std of day uncertainty in position in the RIC frame,
+        RIC_vel_unc: list of tuples with rms and std of day uncertainty in velocity in the RIC frame,
+
+        The returned lists are of the form [[(x1_rms,x1_std),(y1_rms,y1_std),(z1_rms,z1_std)],[(x2_rms,x2_std),(y2_rms,y2_std),(z2_rms,z2_std)], ...].
+
+    """
+
+    n_year = year
+    n_month = month
+    n_day = day
+
+    ECI_pos_unc = []
+    ECI_vel_unc = []
+    RIC_pos_unc = []
+    RIC_vel_unc = []
+
+    for _ in range(length):
+        Eb, E1 = fetch_consecutive_ephems(
+            ephem_list, n_year, n_month, n_day, prov_list, preferred_prov
+        )
+        try:
+            Eb.name and E1.name and E2.name and E3.name
+        except AttributeError:
+            print("Missing Day")
+            continue  # skip the whole day if one ephemeris is missing
+
+        print("base:", Eb.name)
+        print("one:", E1.name)
+        epoch_unix = calculate_epoch_unix(n_year, n_month, n_day)
+
+        dpECI, dvECI, dpRIC, dvRIC = single_prov_diff(Eb.ephem, E1.ephem, epoch_unix)
+
+        ECI_pos_unc.append(day_stats(dpECI))
+        ECI_vel_unc.append(day_stats(dvECI))
+        RIC_pos_unc.append(day_stats(dpRIC))
+        RIC_vel_unc.append(day_stats(dvRIC))
+
+        n_year, n_month, n_day = next_day(n_year, n_month, n_day)
+
+    return ECI_pos_unc, ECI_vel_unc, RIC_pos_unc, RIC_vel_unc
 
 
 def tephem_factory(directory: str, file: str) -> tephem:
@@ -421,215 +552,7 @@ def truth_ephems_from_directory(directory: str) -> List[tephem]:
     return ephemerides
 
 
-def prov_mean_diff(
-    prov1_eph: TruthEphemerisManager,
-    prov2_eph: TruthEphemerisManager,
-    epoch_unix: float,
-) -> tuple[List[float], List[float], List[float], List[float]]:
-    """Calculates differences between two ephemerides."""
-    timestep = 150
-    one_day = 24 * 60 * 60 / timestep
-
-    dpECI = []
-    dpRIC = []
-    dvECI = []
-    dvRIC = []
-
-    curr_time = 0
-
-    for i in range(int(one_day)):
-        mean_position = (
-            prov1_eph.position_at_unix_time(epoch_unix + curr_time)
-            + prov2_eph.position_at_unix_time(epoch_unix + curr_time)
-        ) / 2
-        mean_velocity = (
-            prov1_eph.derived_velocity_at_unix_time(epoch_unix + curr_time)
-            + prov2_eph.derived_velocity_at_unix_time(epoch_unix + curr_time)
-        ) / 2
-
-        mean_pdiff_ECI = (
-            prov1_eph.position_at_unix_time(epoch_unix + curr_time)
-            - prov2_eph.position_at_unix_time(epoch_unix + curr_time)
-        ) / 2
-        mean_vdiff_ECI = (
-            prov1_eph.derived_velocity_at_unix_time(epoch_unix + curr_time)
-            - prov2_eph.derived_velocity_at_unix_time(epoch_unix + curr_time)
-        ) / 2
-
-        RTN = eci_to_rtn_rotation_matrix(
-            mean_position,
-            mean_velocity,
-        )
-
-        mean_pdiff_RIC = np.matmul(RTN, mean_pdiff_ECI)
-        mean_vdiff_RIC = np.matmul(RTN, mean_vdiff_ECI)
-
-        dpECI.append(mean_pdiff_ECI)
-        dpRIC.append(mean_pdiff_RIC)
-        dvECI.append(mean_vdiff_ECI)
-        dvRIC.append(mean_vdiff_RIC)
-        curr_time += timestep
-
-    return dpECI, dpRIC, dvECI, dvRIC
-
-
-def compare_single_prov_ephems(
-    ephem_list, year, month, day, length, prov_list, preferred_prov
-):
-    """Compares ephems from 3 consecutive days over a single day."""
-
-    n_year = year
-    n_month = month
-    n_day = day
-
-    unc_X1day = []
-    unc_X2days = []
-    unc_X3days = []
-    unc_Y1day = []
-    unc_Y2days = []
-    unc_Y3days = []
-    unc_Z1day = []
-    unc_Z2days = []
-    unc_Z3days = []
-
-    for i in range(length):
-        Eb, E1, E2, E3 = fetch_consecutive_ephems(
-            ephem_list, n_year, n_month, n_day, prov_list, preferred_prov
-        )
-        try:
-            Eb.name and E1.name and E2.name and E3.name
-        except AttributeError:
-            print("Missing Day")
-            continue  # skip the whole day if one ephemeris is missing
-
-        print("base:", Eb.name)
-        print("one:", E1.name)
-        print("two:", E2.name)
-        print("three:", E3.name)
-        epoch_unix = calculate_epoch_unix(n_year, n_month, n_day)
-
-        dX1, dY1, dZ1, dR1, dI1, dC1 = single_prov_diff(Eb.ephem, E1.ephem, epoch_unix)
-        dX2, dY2, dZ2, dR2, dI2, dC2 = single_prov_diff(Eb.ephem, E2.ephem, epoch_unix)
-        dX3, dY3, dZ3, dR3, dI3, dC3 = single_prov_diff(Eb.ephem, E3.ephem, epoch_unix)
-
-        # ts = [x for x in range(len(dX1))]
-        # fig,(ax1,ax2,ax3) = plt.subplots(1,3,figsize=(20,5))
-
-        # ax1.plot(ts,dX1,'r',label="one day")
-        # ax1.plot(ts,dX2,'g',label="two days")
-        # ax1.plot(ts,dX3,'b',label="three days")
-        # ax2.plot(ts,dY1,'r',label="one day")
-        # ax2.plot(ts,dY2,'g',label="two days")
-        # ax2.plot(ts,dY3,'b',label="three days")
-        # ax3.plot(ts,dZ1,'r',label="one day")
-        # ax3.plot(ts,dZ2,'g',label="two days")
-        # ax3.plot(ts,dZ3,'b',label="three days")
-
-        # ax1.set_xlabel("time steps")
-        # ax2.set_xlabel("time steps")
-        # ax3.set_xlabel("time steps")
-        # ax1.set_ylabel("dX (m)")
-        # ax2.set_ylabel("dY (m)")
-        # ax3.set_ylabel("dZ (m)")
-        # plt.legend()
-        # plt.show()
-
-        unc_X1day.append(abs(max_conf_day(dX1, 95)))
-        unc_Y1day.append(abs(max_conf_day(dY1, 95)))
-        unc_Z1day.append(abs(max_conf_day(dZ1, 95)))
-        unc_X2days.append(abs(max_conf_day(dX2, 95)))
-        unc_Y2days.append(abs(max_conf_day(dY2, 95)))
-        unc_Z2days.append(abs(max_conf_day(dZ2, 95)))
-        unc_X3days.append(abs(max_conf_day(dX3, 95)))
-        unc_Y3days.append(abs(max_conf_day(dY3, 95)))
-        unc_Z3days.append(abs(max_conf_day(dZ3, 95)))
-
-        n_year, n_month, n_day = next_day(n_year, n_month, n_day)
-    return (
-        unc_X1day,
-        unc_X2days,
-        unc_X3days,
-        unc_Y1day,
-        unc_Y2days,
-        unc_Y3days,
-        unc_Z1day,
-        unc_Z2days,
-        unc_Z3days,
-    )
-
-
-def compare_successive_ephems(
-    ephem_list, year, month, day, length, prov_list, preferred_prov
-):
-    """Compares ephems from 3 consecutive days over a single day."""
-    n_year = year
-    n_month = month
-    n_day = day
-
-    unc_X1day = []
-    unc_Y1day = []
-    unc_Z1day = []
-
-    for i in range(length):
-        Eb, E1, _, _ = fetch_consecutive_ephems(
-            ephem_list, n_year, n_month, n_day, prov_list, preferred_prov
-        )
-        try:
-            Eb.name and E1.name
-        except AttributeError:
-            print("Missing Day")
-            continue  # skip the whole day if one ephemeris is missing
-
-        print("base:", Eb.name)
-        print("one:", E1.name)
-        epoch_unix = calculate_epoch_unix(n_year, n_month, n_day)
-
-        dX1, dY1, dZ1, dR1, dI1, dC1 = single_prov_diff(Eb.ephem, E1.ephem, epoch_unix)
-
-        unc_X1day.append(abs(max_conf_day(dX1, 95)))
-        unc_Y1day.append(abs(max_conf_day(dY1, 95)))
-        unc_Z1day.append(abs(max_conf_day(dZ1, 95)))
-
-        n_year, n_month, n_day = next_day(n_year, n_month, n_day)
-    return unc_X1day, unc_Y1day, unc_Z1day
-
-
-def compare_successive_ephems_velocity(
-    ephem_list, year, month, day, length, prov_list, preferred_prov
-):
-    """Compares ephems from 3 consecutive days over a single day."""
-    n_year = year
-    n_month = month
-    n_day = day
-
-    unc_VX1day = []
-    unc_VY1day = []
-    unc_VZ1day = []
-
-    for i in range(length):
-        Eb, E1, _, _ = fetch_consecutive_ephems(
-            ephem_list, n_year, n_month, n_day, prov_list, preferred_prov
-        )
-        try:
-            Eb.name and E1.name
-        except AttributeError:
-            print("Missing Day")
-            continue  # skip the whole day if one ephemeris is missing
-
-        print("base:", Eb.name)
-        print("one:", E1.name)
-        epoch_unix = calculate_epoch_unix(n_year, n_month, n_day)
-
-        dVX1, dVY1, dVZ1, dVR1, dVI1, dVC1 = single_prov_vel_diff(
-            Eb.ephem, E1.ephem, epoch_unix
-        )
-
-        unc_VX1day.append(abs(max_conf_day(dVX1, 95)))
-        unc_VY1day.append(abs(max_conf_day(dVY1, 95)))
-        unc_VZ1day.append(abs(max_conf_day(dVZ1, 95)))
-
-        n_year, n_month, n_day = next_day(n_year, n_month, n_day)
-    return unc_VX1day, unc_VY1day, unc_VZ1day
+"""DEPRECATED"""
 
 
 def exp_fit(uncertainty_list):
