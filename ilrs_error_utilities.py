@@ -507,7 +507,7 @@ def compare_single_prov_ephems_over_time(
             ephem_list, n_year, n_month, n_day, prov_list, preferred_prov
         )
         try:
-            Eb.name and E1.name and E2.name and E3.name
+            Eb.name and E1.name
         except AttributeError:
             print("Missing Day")
             continue  # skip the whole day if one ephemeris is missing

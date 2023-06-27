@@ -1,12 +1,8 @@
-import ILRS_Uncertainty as unc
-import truth_request as tr
-import orekit
-from orekit.pyhelpers import setup_orekit_curdir
 from os.path import exists
 
-# Initialize orekit
-orekit_vm = orekit.initVM()
-setup_orekit_curdir("/Users/gkeramidas/Projects/learning/leolabs-config-data-dynamic/")
+import ilrs_error_utilities as ieu
+import truth_request as tr
+
 
 targets = ["L5011"]
 year_list = [2022]
@@ -33,7 +29,7 @@ for i in range(len(year_list)):
         end_month = end_epoch[1]
         end_day = end_epoch[2]
 
-        base_year, base_month, base_day = unc.base_date(
+        base_year, base_month, base_day = ieu.base_date(
             [end_year, end_month, end_day], length_of_search
         )  # base epoch from where our comparisons begin
 
@@ -78,57 +74,64 @@ for i in range(len(year_list)):
 
         directory = tr.set_up_truth_directory_for_target(leolabs_id) + "/"
         tr.dwld_data_for_target(leolabs_id, end_epoch, length_of_search)
-        ephemerides = unc.truth_ephems_from_directory(directory)
+        ephemerides = ieu.truth_ephems_from_directory(directory)
         for ephem in ephemerides:
             print(ephem.name)
-        dX1, dX2, dY1, dY2, dZ1, dZ2 = unc.compare_eph(
+        dX1, dX2, dY1, dY2, dZ1, dZ2 = ieu.compare_different_provider_ephems_over_time(
             ephemerides, base_year, base_month, base_day, length_of_search, prov1, prov2
         )
 
-        uncX1 = unc.final_uncertainty(dX1)
-        uncX2 = unc.final_uncertainty(dX2)
-        uncY1 = unc.final_uncertainty(dY1)
-        uncY2 = unc.final_uncertainty(dY2)
-        uncZ1 = unc.final_uncertainty(dZ1)
-        uncZ2 = unc.final_uncertainty(dZ2)
+        # uncX1 = unc.final_uncertainty(dX1)
+        # uncX2 = unc.final_uncertainty(dX2)
+        # uncY1 = unc.final_uncertainty(dY1)
+        # uncY2 = unc.final_uncertainty(dY2)
+        # uncZ1 = unc.final_uncertainty(dZ1)
+        # uncZ2 = unc.final_uncertainty(dZ2)
 
-        dVX1, dVX2, dVY1, dVY2, dVZ1, dVZ2 = unc.compare_eph_velocity(
+        (
+            dVX1,
+            dVX2,
+            dVY1,
+            dVY2,
+            dVZ1,
+            dVZ2,
+        ) = ieu.compare_different_provider_ephems_over_time(
             ephemerides, base_year, base_month, base_day, length_of_search, prov1, prov2
         )
 
-        uncVX1 = unc.final_uncertainty(dVX1)
-        uncVX2 = unc.final_uncertainty(dVX2)
-        uncVY1 = unc.final_uncertainty(dVY1)
-        uncVY2 = unc.final_uncertainty(dVY2)
-        uncVZ1 = unc.final_uncertainty(dVZ1)
-        uncVZ2 = unc.final_uncertainty(dVZ2)
+        # uncVX1 = unc.final_uncertainty(dVX1)
+        # uncVX2 = unc.final_uncertainty(dVX2)
+        # uncVY1 = unc.final_uncertainty(dVY1)
+        # uncVY2 = unc.final_uncertainty(dVY2)
+        # uncVZ1 = unc.final_uncertainty(dVZ1)
+        # uncVZ2 = unc.final_uncertainty(dVZ2)
         print("Finished month for target")
-        with open(filepath, "a") as f:
-            f.write(
-                datestring
-                + "\t"
-                + str(uncX1)
-                + "\t"
-                + str(uncY1)
-                + "\t"
-                + str(uncZ1)
-                + "\t"
-                + str(uncX2)
-                + "\t"
-                + str(uncY2)
-                + "\t"
-                + str(uncZ2)
-                + "\t"
-                + str(uncVX1)
-                + "\t"
-                + str(uncVY1)
-                + "\t"
-                + str(uncVZ1)
-                + "\t"
-                + str(uncVX2)
-                + "\t"
-                + str(uncVY2)
-                + "\t"
-                + str(uncVZ2)
-                + "\n"
-            )
+        # with open(filepath, "a") as f:
+        #     f.write(
+        #         datestring
+        #         + "\t"
+        #         + str(uncX1)
+        #         + "\t"
+        #         + str(uncY1)
+        #         + "\t"
+        #         + str(uncZ1)
+        #         + "\t"
+        #         + str(uncX2)
+        #         + "\t"
+        #         + str(uncY2)
+        #         + "\t"
+        #         + str(uncZ2)
+        #         + "\t"
+        #         + str(uncVX1)
+        #         + "\t"
+        #         + str(uncVY1)
+        #         + "\t"
+        #         + str(uncVZ1)
+        #         + "\t"
+        #         + str(uncVX2)
+        #         + "\t"
+        #         + str(uncVY2)
+        #         + "\t"
+        #         + str(uncVZ2)
+        #         + "\n"
+        #     )

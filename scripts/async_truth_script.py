@@ -1,10 +1,11 @@
-import truth_request as tr
-import truth_analysis_local as ta
-import orekit
-from orekit.pyhelpers import setup_orekit_curdir
-from matplotlib import pyplot as plt
-import asyncio
 from itertools import zip_longest
+import asyncio
+
+import matplotlib.pyplot as plt
+
+import truth_request as tr
+import truth_analysis_local as tal
+
 
 # Inputs
 ILRS_targets = [

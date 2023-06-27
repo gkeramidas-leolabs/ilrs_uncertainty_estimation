@@ -1,14 +1,10 @@
-import ILRS_Uncertainty as unc
-import truth_request as tr
-import orekit
-import random
-import numpy as np
-from orekit.pyhelpers import setup_orekit_curdir
 from os.path import exists
 
-# Initialize orekit
-orekit_vm = orekit.initVM()
-setup_orekit_curdir("/Users/gkeramidas/Projects/learning/leolabs-config-data-dynamic/")
+import numpy as np
+
+import ilrs_error_utilities as ieu
+import truth_request as tr
+
 
 targets = ["L1471", "L5429", "L3972", "L3969", "L2669"]  # single-providers
 # targets = ['L2486','L3059','L4884','L5011','L2682'] # multi-providers
@@ -37,7 +33,7 @@ for i in range(len(year_list)):
         end_month = end_epoch[1]
         end_day = end_epoch[2]
 
-        base_year, base_month, base_day = unc.base_date(
+        base_year, base_month, base_day = ieu.base_date(
             [end_year, end_month, end_day], length_of_search
         )  # base epoch from where our comparisons begin
 
@@ -60,14 +56,14 @@ for i in range(len(year_list)):
         tr.dwld_data_for_target(leolabs_id, end_epoch, length_of_search)
 
         # Initializes tephem objects from directory files
-        ephemerides = unc.truth_ephems_from_directory(directory)
+        ephemerides = ieu.truth_ephems_from_directory(directory)
 
         # Debugging printing statement
         for ephem in ephemerides:
             print(ephem.name)
 
         # Main function that does the comparison
-        unc_VX1day, unc_VY1day, unc_VZ1day = unc.compare_successive_ephems_velocity(
+        unc_VX1day, unc_VY1day, unc_VZ1day = ieu.compare_single_prov_ephems_over_time(
             ephemerides,
             base_year,
             base_month,
