@@ -128,7 +128,7 @@ def base_date(epoch: List[int], num_days: int) -> tuple[int, int, int]:
 
 def find_ephem(
     ephem_list: List[TruthEphemerisManager], year: int, month: int, day: int, ftype: str
-) -> Union(TruthEphemerisManager, None):
+) -> Union[TruthEphemerisManager, None]:
     """Finds ephemeris object based on epoch and file type."""
 
     year = int("".join(list(str(year)))[2:])

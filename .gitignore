@@ -9,3 +9,4 @@ misc/**
 notebooks/**
 .vscode/**
 textfiles/**
+.env

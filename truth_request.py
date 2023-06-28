@@ -542,7 +542,7 @@ def collect_all_states(
 
 def state_error(
     object_id: str, state_id: str, epoch: List[int], timestep=150, plotting=False
-) -> Union(tuple[float, float, float, float], tuple[None, None, None, None]):
+) -> Union[tuple[float, float, float, float], tuple[None, None, None, None]]:
     """Creates a truth object from a state and runs truth analysis on it, returning the errors."""
     # Initializing object
     id_data_TO = id_data(object_id)  # Id data of a truth object
@@ -619,10 +619,10 @@ async def async_state_requests(
 
 def truth_analysis_errors(
     truth_object: tal.TruthAnalysis,
-) -> Union(
+) -> Union[
     tuple[float, float, float, float, float, float, float],
     tuple[None, None, None, None, None, None, None],
-):
+]:
     """Second part of original state_error function. Designed to not contain API requests."""
     try:  # handling the exception that there are no ILRS truth files to download from S3
         (
