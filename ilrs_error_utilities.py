@@ -252,6 +252,52 @@ def day_stats(L: List[tuple]) -> List[tuple[float, float]]:
     return list(zip(rms_list, std_list))
 
 
+def prov_mean_diff_opt(
+    prov1_eph: TruthEphemerisManager,
+    prov2_eph: TruthEphemerisManager,
+    epoch_unix: float,
+) -> tuple[List[float], List[float], List[float], List[float]]:
+    """Calculates differences between two ephemerides over a single day. Optimized to work with list comprehensions.
+
+    Args:
+        prov1_eph: Ephemeris object from the first provider,
+        prov2_eph: Ephemeris object from the second provider,
+        epoch_unix: Unix time from when the comparison starts
+
+    Returns:
+        dpECI: List of position residuals (differences) in ECI coordinates,
+        dvECI: List of velocity residuals (differences) in ECI coordinates,
+        dpRIC: List of position residuals (differences) in RIC coordinates,
+        dvRIC: List of velocity residuals (differences) in RIC coordinates,
+
+        The lists are of the form [[dx1,dy1,dz1],[dx2,dy2,dz2],...] for each time step.
+
+    """
+    timestep = 150
+    one_day = 24 * 60 * 60 / timestep
+    timestep_iter = [epoch_unix + i * timestep for i in range(int(one_day))]
+
+    prov1_pos = [prov1_eph.position_at_unix_time(x) for x in timestep_iter]
+    prov2_pos = [prov2_eph.position_at_unix_time(x) for x in timestep_iter]
+    prov1_vel = [prov1_eph.derived_velocity_at_unix_time(x) for x in timestep_iter]
+    prov2_vel = [prov2_eph.derived_velocity_at_unix_time(x) for x in timestep_iter]
+
+    mean_position = [(x[0] + x[1]) / 2 for x in zip(prov1_pos, prov2_pos)]
+    mean_velocity = [(x[0] + x[1]) / 2 for x in zip(prov1_vel, prov2_vel)]
+    dpECI = [(x[0] - x[1]) / 2 for x in zip(prov1_pos, prov2_pos)]
+    dvECI = [(x[0] - x[1]) / 2 for x in zip(prov1_vel, prov2_vel)]
+
+    RTN = [
+        eci_to_rtn_rotation_matrix(m[0], m[1])
+        for m in zip(mean_position, mean_velocity)
+    ]
+
+    dpRIC = [np.matmul(x[0], x[1]) for x in zip(RTN, dpECI)]
+    dvRIC = [np.matmul(x[0], x[1]) for x in zip(RTN, dvECI)]
+
+    return dpECI, dvECI, dpRIC, dvRIC
+
+
 def prov_mean_diff(
     prov1_eph: TruthEphemerisManager,
     prov2_eph: TruthEphemerisManager,
@@ -385,7 +431,7 @@ def compare_different_provider_ephems_over_time(
         epoch_unix = calculate_epoch_unix(n_year, n_month, n_day)
 
         try:
-            dpECI, dpRIC, dvECI, dvRIC = prov_mean_diff(
+            dpECI, dpRIC, dvECI, dvRIC = prov_mean_diff_opt(
                 prov1_eph_obj.ephem, prov2_eph_obj.ephem, epoch_unix
             )
         except:
