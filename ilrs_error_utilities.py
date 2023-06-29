@@ -945,6 +945,32 @@ def create_dataframe_from_comparison_output(
     return df
 
 
+def create_dataframe_from_comparison_output_economy(
+    ECI_pos_unc: List[tuple[float, float]],
+    ECI_vel_unc: List[tuple[float, float]],
+    date_list: List[str],
+) -> pd.DataFrame:
+    """Puts all the results of comparison functions in a single dataframe."""
+    df = pd.DataFrame(
+        {
+            "date": [day for day in date_list],
+            "Xrms": [day[0][0] for day in ECI_pos_unc],
+            "Xstd": [day[0][0] for day in ECI_pos_unc],
+            "Yrms": [day[1][0] for day in ECI_pos_unc],
+            "Ystd": [day[1][1] for day in ECI_pos_unc],
+            "Zrms": [day[2][0] for day in ECI_pos_unc],
+            "Zstd": [day[2][1] for day in ECI_pos_unc],
+            "Vxrms": [day[0][0] for day in ECI_vel_unc],
+            "Vxstd": [day[0][0] for day in ECI_vel_unc],
+            "Vyrms": [day[1][0] for day in ECI_vel_unc],
+            "Vystd": [day[1][1] for day in ECI_vel_unc],
+            "Vzrms": [day[2][0] for day in ECI_vel_unc],
+            "Vzstd": [day[2][1] for day in ECI_vel_unc],
+        }
+    )
+    return df
+
+
 """DEPRECATED"""
 
 
