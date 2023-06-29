@@ -417,16 +417,18 @@ def extract_std_from_error_distributions(err_collection) -> List[float]:
     return stdevs
 
 
-def set_up_truth_directory_for_target(leolabs_id: Any) -> str:
+def set_up_truth_directory_for_target(
+    leolabs_id: Any, absolute_path_to_truth_dir: Path
+) -> str:
     """Prepares a local directory for storing ILRS truth files for particular ILRS target."""
     try:
         shutil.rmtree(
-            "truth/" + str(leolabs_id)
+            str(absolute_path_to_truth_dir) + "truth/" + str(leolabs_id)
         )  # Remove target's directory if it already exists
     except FileNotFoundError:
         pass
 
-    base_truth_directory = "truth/"
+    base_truth_directory = str(absolute_path_to_truth_dir) + "truth/"
     try:
         os.mkdir(base_truth_directory)
     except OSError:
@@ -504,11 +506,16 @@ def download_truth_files(filenames: List[str], truth_directory: str):
     )
 
 
-def dwld_data_for_target(leolabs_id: str, epoch_date: List[int], num_days: int):
+def dwld_data_for_target(
+    leolabs_id: str,
+    epoch_date: List[int],
+    num_days: int,
+    absolute_path_to_truth_dir: Path,
+):
     """Downloads data for a particular target."""
     norad_id = id_data(leolabs_id)["norad_id"]  # look up norad id of target
     trth_dir = set_up_truth_directory_for_target(
-        leolabs_id
+        leolabs_id, absolute_path_to_truth_dir
     )  # create directory for target
     trth_flnms = get_truth_file_list(
         epoch_date, norad_id, num_days
