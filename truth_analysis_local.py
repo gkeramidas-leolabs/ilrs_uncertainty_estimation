@@ -26,7 +26,6 @@ from odlib.od_utils.frame_conversion import eci_to_rtn_rotation_matrix
 from utilities.aws_helper import AwsHelper
 from utilities.api import Api
 from utilities.od_logging import OptionalLog
-from truth_request import PropagationsContainer, RicCovariancesContainer
 
 import error_retrieval as er
 
@@ -47,8 +46,8 @@ class TruthAnalysis(OptionalLog):
     def __init__(
         self,
         id_data: Dict[str, Any],
-        propagation: List[PropagationsContainer],
-        ric_covariances: List[RicCovariancesContainer],
+        propagation: List["truth_request.PropagationsContainer"],
+        ric_covariances: List["truth_request.RicCovariancesContainer"],
         logger=None,
         upload_truth_plot=False,
         flush_truth_files=True,
