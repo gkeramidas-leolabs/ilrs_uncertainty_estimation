@@ -4,6 +4,7 @@ import statistics
 from typing import List, Union
 
 import numpy as np
+import pandas as pd
 import scipy.stats
 import scipy.optimize
 import orekit
@@ -50,19 +51,35 @@ def calculate_epoch_unix(year: int, month: int, day: int) -> float:
     return epoch_unix
 
 
+def leap_year(year: int) -> bool:
+    """Recognizes if a year is a leap year and returns boolean True if it is."""
+    leap = False
+    if year % 4 == 0:
+        if (year % 100 == 0) & (year % 400 == 0):
+            leap = True
+        elif (year % 100 == 0) & (year % 400 != 0):
+            leap = False
+        else:
+            leap = True
+    else:
+        leap = False
+
+    return leap
+
+
 def next_day(year: int, month: int, day: int) -> tuple[int, int, int]:
-    """Takes one day and returns the next one. No leap years.
-
-    TODO: ADD leap years
-    """
-
+    """Takes one day and returns the next one. No leap years."""
+    leap = leap_year(year)
     day_list = [int(i) for i in np.linspace(1, 31, 31)]
     month_list = [int(i) for i in np.linspace(1, 12, 12)]
 
     if month in [1, 3, 5, 7, 8, 10, 12]:
         dlist = day_list
     if month == 2:
-        dlist = day_list[0:28]
+        if leap:
+            dlist = day_list[0:29]
+        else:
+            dlist = day_list[0:28]
     if month in [4, 6, 9, 11]:
         dlist = day_list[0:30]
 
@@ -82,11 +99,8 @@ def next_day(year: int, month: int, day: int) -> tuple[int, int, int]:
 
 
 def previous_day(year: int, month: int, day: int) -> tuple[int, int, int]:
-    """Takes an epoch and returns the previous day. No leap years.
-
-    TODO: Add leap years
-    """
-
+    """Takes an epoch and returns the previous day. No leap years."""
+    leap = leap_year(year)
     day_list = [int(i) for i in np.linspace(1, 31, 31)]
     month_list = [int(i) for i in np.linspace(1, 12, 12)]
 
@@ -98,7 +112,10 @@ def previous_day(year: int, month: int, day: int) -> tuple[int, int, int]:
     if prev_month in [1, 3, 5, 7, 8, 10, 12]:
         dlist = day_list
     if prev_month == 2:
-        dlist = day_list[0:28]
+        if leap:
+            dlist = day_list[0:29]
+        else:
+            dlist = day_list[0:28]
     if prev_month in [4, 6, 9, 11]:
         dlist = day_list[0:30]
 
@@ -124,6 +141,14 @@ def base_date(epoch: List[int], num_days: int) -> tuple[int, int, int]:
         ep_year, ep_month, ep_day = previous_day(ep_year, ep_month, ep_day)
 
     return ep_year, ep_month, ep_day
+
+
+def string_date(date_list: List[int]) -> str:
+    """Takes a date in the form of a list and reformats it into a string."""
+    date_obj = datetime(*date_list)
+    date_string = date_obj.strftime("%Y-%m-%d")
+
+    return date_string
 
 
 def find_ephem(
@@ -378,6 +403,7 @@ def compare_different_provider_ephems_over_time(
     List[tuple[float, float]],
     List[tuple[float, float]],
     List[tuple[float, float]],
+    List[str],
 ]:
     """Function that compares ephemeris objects from different providers over a certain period of time.
 
@@ -392,6 +418,7 @@ def compare_different_provider_ephems_over_time(
         ECI_vel_unc: list of tuples with rms and std of day uncertainty in velocity in the ECI frame,
         RIC_pos_unc: list of tuples with rms and std of day uncertainty in position in the RIC frame,
         RIC_vel_unc: list of tuples with rms and std of day uncertainty in velocity in the RIC frame,
+        date_list: list of dates for which comparison was done.
 
         The returned lists are of the form [[(x1_rms,x1_std),(y1_rms,y1_std),(z1_rms,z1_std)],[(x2_rms,x2_std),(y2_rms,y2_std),(z2_rms,z2_std)], ...].
     """
@@ -403,6 +430,7 @@ def compare_different_provider_ephems_over_time(
     ECI_vel_unc = []
     RIC_pos_unc = []
     RIC_vel_unc = []
+    date_list = []
 
     for _ in range(length):
         prov1_eph_obj = find_ephem(ephem_list, n_year, n_month, n_day, prov1)
@@ -444,11 +472,62 @@ def compare_different_provider_ephems_over_time(
         RIC_vel_unc.append(day_stats(dvRIC))
 
         n_year, n_month, n_day = next_day(n_year, n_month, n_day)
+        single_date_list = [n_year, n_month, n_day]
+        single_date_str = string_date(single_date_list)
+        date_list.append(single_date_str)
+
         print("checked mean")
         print("next month:", n_month)
         print("next day:", n_day)
 
-    return ECI_pos_unc, ECI_vel_unc, RIC_pos_unc, RIC_vel_unc
+    return ECI_pos_unc, ECI_vel_unc, RIC_pos_unc, RIC_vel_unc, date_list
+
+
+def single_prov_diff_opt(
+    base_eph: TruthEphemerisManager,
+    secondary_eph: TruthEphemerisManager,
+    epoch_unix: float,
+) -> tuple[
+    List[tuple[float, float]],
+    List[tuple[float, float]],
+    List[tuple[float, float]],
+    List[tuple[float, float]],
+]:
+    """Calculates differences between two ephemerides that belong to the same provider. Optimized to work with list comprehensions.
+
+    Args:
+        base_eph: Ephemeride from the day that the comparison will start,
+        secondary_eph: Ephemeride from the day before the comparison will start (will be extrapolated to the day of comparison),
+        epoch_unix: Time when the comparison will start
+
+    Returns:
+        ECI_pos_unc: list of tuples with rms and std of day uncertainty in position in the ECI frame,
+        ECI_vel_unc: list of tuples with rms and std of day uncertainty in velocity in the ECI frame,
+        RIC_pos_unc: list of tuples with rms and std of day uncertainty in position in the RIC frame,
+        RIC_vel_unc: list of tuples with rms and std of day uncertainty in velocity in the RIC frame
+
+        The returned lists are of the form [[(x1_rms,x1_std),(y1_rms,y1_std),(z1_rms,z1_std)],[(x2_rms,x2_std),(y2_rms,y2_std),(z2_rms,z2_std)], ...].
+    """
+    timestep = 150
+    one_day = 24 * 60 * 60 / timestep
+    timestep_iter = [epoch_unix + i * timestep for i in range(int(one_day))]
+
+    base_pos = [base_eph.position_at_unix_time(x) for x in timestep_iter]
+    secondary_pos = [secondary_eph.position_at_unix_time(x) for x in timestep_iter]
+    base_vel = [base_eph.derived_velocity_at_unix_time(x) for x in timestep_iter]
+    secondary_vel = [
+        secondary_eph.derived_velocity_at_unix_time(x) for x in timestep_iter
+    ]
+
+    dpECI = [(x[0] - x[1]) for x in zip(base_pos, secondary_pos)]
+    dvECI = [(x[0] - x[1]) for x in zip(base_vel, secondary_vel)]
+
+    RTN = [eci_to_rtn_rotation_matrix(x[0], x[1]) for x in zip(base_pos, base_vel)]
+
+    dpRIC = [np.matmul(x[0], x[1]) for x in zip(RTN, dpECI)]
+    dvRIC = [np.matmul(x[0], x[1]) for x in zip(RTN, dvECI)]
+
+    return dpECI, dvECI, dpRIC, dvRIC
 
 
 def single_prov_diff(
@@ -520,7 +599,13 @@ def compare_single_prov_ephems_over_time(
     length: int,
     prov_list: List[str],
     preferred_prov: str,
-):
+) -> tuple[
+    List[tuple[float, float]],
+    List[tuple[float, float]],
+    List[tuple[float, float]],
+    List[tuple[float, float]],
+    List[str],
+]:
     """Function that compares ephemeris objects from the same provider over a certain period of time.
 
     Args:
@@ -534,6 +619,7 @@ def compare_single_prov_ephems_over_time(
         ECI_vel_unc: list of tuples with rms and std of day uncertainty in velocity in the ECI frame,
         RIC_pos_unc: list of tuples with rms and std of day uncertainty in position in the RIC frame,
         RIC_vel_unc: list of tuples with rms and std of day uncertainty in velocity in the RIC frame,
+        date_list: list of dates for which comparison was done.
 
         The returned lists are of the form [[(x1_rms,x1_std),(y1_rms,y1_std),(z1_rms,z1_std)],[(x2_rms,x2_std),(y2_rms,y2_std),(z2_rms,z2_std)], ...].
 
@@ -547,6 +633,7 @@ def compare_single_prov_ephems_over_time(
     ECI_vel_unc = []
     RIC_pos_unc = []
     RIC_vel_unc = []
+    date_list = []
 
     for _ in range(length):
         Eb, E1 = fetch_consecutive_ephems(
@@ -562,7 +649,9 @@ def compare_single_prov_ephems_over_time(
         print("one:", E1.name)
         epoch_unix = calculate_epoch_unix(n_year, n_month, n_day)
 
-        dpECI, dvECI, dpRIC, dvRIC = single_prov_diff(Eb.ephem, E1.ephem, epoch_unix)
+        dpECI, dvECI, dpRIC, dvRIC = single_prov_diff_opt(
+            Eb.ephem, E1.ephem, epoch_unix
+        )
 
         ECI_pos_unc.append(day_stats(dpECI))
         ECI_vel_unc.append(day_stats(dvECI))
@@ -570,8 +659,11 @@ def compare_single_prov_ephems_over_time(
         RIC_vel_unc.append(day_stats(dvRIC))
 
         n_year, n_month, n_day = next_day(n_year, n_month, n_day)
+        single_date_list = [n_year, n_month, n_day]
+        single_date_str = string_date(single_date_list)
+        date_list.append(single_date_str)
 
-    return ECI_pos_unc, ECI_vel_unc, RIC_pos_unc, RIC_vel_unc
+    return ECI_pos_unc, ECI_vel_unc, RIC_pos_unc, RIC_vel_unc, date_list
 
 
 def tephem_factory(directory: str, file: str) -> tephem:
@@ -596,6 +688,46 @@ def truth_ephems_from_directory(directory: str) -> List[tephem]:
     ephemerides = list(map(lambda x: tephem_factory(directory, x), file_list))
 
     return ephemerides
+
+
+def create_dataframe_from_comparison_output(
+    ECI_pos_unc: List[tuple[float, float]],
+    ECI_vel_unc: List[tuple[float, float]],
+    RIC_pos_unc: List[tuple[float, float]],
+    RIC_vel_unc: List[tuple[float, float]],
+    date_list: List[str],
+) -> pd.DataFrame:
+    """Puts all the results of comparison functions in a single dataframe."""
+    df = pd.DataFrame(
+        {
+            "date": [day for day in date_list],
+            "Xrms": [day[0][0] for day in ECI_pos],
+            "Xstd": [day[0][0] for day in ECI_pos],
+            "Yrms": [day[1][0] for day in ECI_pos],
+            "Ystd": [day[1][1] for day in ECI_pos],
+            "Zrms": [day[2][0] for day in ECI_pos],
+            "Zstd": [day[2][1] for day in ECI_pos],
+            "Vxrms": [day[0][0] for day in ECI_vel],
+            "Vxstd": [day[0][0] for day in ECI_vel],
+            "Vyrms": [day[1][0] for day in ECI_vel],
+            "Vystd": [day[1][1] for day in ECI_vel],
+            "Vzrms": [day[2][0] for day in ECI_vel],
+            "Vzstd": [day[2][1] for day in ECI_vel],
+            "Rrms": [day[0][0] for day in RIC_pos],
+            "Rstd": [day[0][0] for day in RIC_pos],
+            "Irms": [day[1][0] for day in RIC_pos],
+            "Istd": [day[1][1] for day in RIC_pos],
+            "Crms": [day[2][0] for day in RIC_pos],
+            "Cstd": [day[2][1] for day in RIC_pos],
+            "Vrrms": [day[0][0] for day in RIC_vel],
+            "Vrstd": [day[0][0] for day in RIC_vel],
+            "Virms": [day[1][0] for day in RIC_vel],
+            "Vistd": [day[1][1] for day in RIC_vel],
+            "Vcrms": [day[2][0] for day in RIC_vel],
+            "Vcstd": [day[2][1] for day in RIC_vel],
+        }
+    )
+    return df
 
 
 """DEPRECATED"""
