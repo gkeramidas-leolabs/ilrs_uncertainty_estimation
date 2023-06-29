@@ -387,7 +387,7 @@ def prov_mean_diff(
         dvRIC.append(mean_vdiff_RIC)
         curr_time += timestep
 
-    return dpECI, dpRIC, dvECI, dvRIC
+    return dpECI, dvECI, dpRIC, dvRIC
 
 
 def compare_different_provider_ephems_over_time(
@@ -701,30 +701,30 @@ def create_dataframe_from_comparison_output(
     df = pd.DataFrame(
         {
             "date": [day for day in date_list],
-            "Xrms": [day[0][0] for day in ECI_pos],
-            "Xstd": [day[0][0] for day in ECI_pos],
-            "Yrms": [day[1][0] for day in ECI_pos],
-            "Ystd": [day[1][1] for day in ECI_pos],
-            "Zrms": [day[2][0] for day in ECI_pos],
-            "Zstd": [day[2][1] for day in ECI_pos],
-            "Vxrms": [day[0][0] for day in ECI_vel],
-            "Vxstd": [day[0][0] for day in ECI_vel],
-            "Vyrms": [day[1][0] for day in ECI_vel],
-            "Vystd": [day[1][1] for day in ECI_vel],
-            "Vzrms": [day[2][0] for day in ECI_vel],
-            "Vzstd": [day[2][1] for day in ECI_vel],
-            "Rrms": [day[0][0] for day in RIC_pos],
-            "Rstd": [day[0][0] for day in RIC_pos],
-            "Irms": [day[1][0] for day in RIC_pos],
-            "Istd": [day[1][1] for day in RIC_pos],
-            "Crms": [day[2][0] for day in RIC_pos],
-            "Cstd": [day[2][1] for day in RIC_pos],
-            "Vrrms": [day[0][0] for day in RIC_vel],
-            "Vrstd": [day[0][0] for day in RIC_vel],
-            "Virms": [day[1][0] for day in RIC_vel],
-            "Vistd": [day[1][1] for day in RIC_vel],
-            "Vcrms": [day[2][0] for day in RIC_vel],
-            "Vcstd": [day[2][1] for day in RIC_vel],
+            "Xrms": [day[0][0] for day in ECI_pos_unc],
+            "Xstd": [day[0][0] for day in ECI_pos_unc],
+            "Yrms": [day[1][0] for day in ECI_pos_unc],
+            "Ystd": [day[1][1] for day in ECI_pos_unc],
+            "Zrms": [day[2][0] for day in ECI_pos_unc],
+            "Zstd": [day[2][1] for day in ECI_pos_unc],
+            "Vxrms": [day[0][0] for day in ECI_vel_unc],
+            "Vxstd": [day[0][0] for day in ECI_vel_unc],
+            "Vyrms": [day[1][0] for day in ECI_vel_unc],
+            "Vystd": [day[1][1] for day in ECI_vel_unc],
+            "Vzrms": [day[2][0] for day in ECI_vel_unc],
+            "Vzstd": [day[2][1] for day in ECI_vel_unc],
+            "Rrms": [day[0][0] for day in RIC_pos_unc],
+            "Rstd": [day[0][0] for day in RIC_pos_unc],
+            "Irms": [day[1][0] for day in RIC_pos_unc],
+            "Istd": [day[1][1] for day in RIC_pos_unc],
+            "Crms": [day[2][0] for day in RIC_pos_unc],
+            "Cstd": [day[2][1] for day in RIC_pos_unc],
+            "Vrrms": [day[0][0] for day in RIC_vel_unc],
+            "Vrstd": [day[0][0] for day in RIC_vel_unc],
+            "Virms": [day[1][0] for day in RIC_vel_unc],
+            "Vistd": [day[1][1] for day in RIC_vel_unc],
+            "Vcrms": [day[2][0] for day in RIC_vel_unc],
+            "Vcstd": [day[2][1] for day in RIC_vel_unc],
         }
     )
     return df

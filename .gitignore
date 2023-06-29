@@ -10,3 +10,4 @@ notebooks/**
 .vscode/**
 textfiles/**
 .env
+results/
