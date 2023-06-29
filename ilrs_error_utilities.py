@@ -323,6 +323,42 @@ def prov_mean_diff_opt(
     return dpECI, dvECI, dpRIC, dvRIC
 
 
+def prov_mean_diff_opt_economy(
+    prov1_eph: TruthEphemerisManager,
+    prov2_eph: TruthEphemerisManager,
+    epoch_unix: float,
+) -> tuple[List[float], List[float]]:
+    """Calculates differences between two ephemerides over a single day. Optimized to work with list comprehensions.
+
+    Args:
+        prov1_eph: Ephemeris object from the first provider,
+        prov2_eph: Ephemeris object from the second provider,
+        epoch_unix: Unix time from when the comparison starts
+
+    Returns:
+        dpECI: List of position residuals (differences) in ECI coordinates,
+        dvECI: List of velocity residuals (differences) in ECI coordinates,
+
+        The lists are of the form [[dx1,dy1,dz1],[dx2,dy2,dz2],...] for each time step.
+
+    """
+    timestep = 150
+    one_day = 24 * 60 * 60 / timestep
+    timestep_iter = [epoch_unix + i * timestep for i in range(int(one_day))]
+
+    prov1_pos = [prov1_eph.position_at_unix_time(x) for x in timestep_iter]
+    prov2_pos = [prov2_eph.position_at_unix_time(x) for x in timestep_iter]
+    prov1_vel = [prov1_eph.derived_velocity_at_unix_time(x) for x in timestep_iter]
+    prov2_vel = [prov2_eph.derived_velocity_at_unix_time(x) for x in timestep_iter]
+
+    mean_position = [(x[0] + x[1]) / 2 for x in zip(prov1_pos, prov2_pos)]
+    mean_velocity = [(x[0] + x[1]) / 2 for x in zip(prov1_vel, prov2_vel)]
+    dpECI = [(x[0] - x[1]) / 2 for x in zip(prov1_pos, prov2_pos)]
+    dvECI = [(x[0] - x[1]) / 2 for x in zip(prov1_vel, prov2_vel)]
+
+    return dpECI, dvECI
+
+
 def prov_mean_diff(
     prov1_eph: TruthEphemerisManager,
     prov2_eph: TruthEphemerisManager,
@@ -459,7 +495,7 @@ def compare_different_provider_ephems_over_time(
         epoch_unix = calculate_epoch_unix(n_year, n_month, n_day)
 
         try:
-            dpECI, dpRIC, dvECI, dvRIC = prov_mean_diff_opt(
+            dpECI, dvECI, dpRIC, dvRIC = prov_mean_diff_opt(
                 prov1_eph_obj.ephem, prov2_eph_obj.ephem, epoch_unix
             )
         except:
@@ -481,6 +517,87 @@ def compare_different_provider_ephems_over_time(
         print("next day:", n_day)
 
     return ECI_pos_unc, ECI_vel_unc, RIC_pos_unc, RIC_vel_unc, date_list
+
+
+def compare_different_provider_ephems_over_time_economy(
+    ephem_list: List[tephem],
+    year: int,
+    month: int,
+    day: int,
+    length: int,
+    prov1: str,
+    prov2: str,
+) -> tuple[List[tuple[float, float]], List[tuple[float, float]], List[str],]:
+    """Function that compares ephemeris objects from different providers over a certain period of time.
+
+    Args:
+        ephem_list: list of tephem objects
+        year, month, day: the epoch of the start of the comparison study
+        length: the length in days of the comparison study
+        prov1, prov2: file extensions of preferred providers
+
+    Returns:
+        ECI_pos_unc: list of tuples with rms and std of day uncertainty in position in the ECI frame,
+        ECI_vel_unc: list of tuples with rms and std of day uncertainty in velocity in the ECI frame,
+        date_list: list of dates for which comparison was done.
+
+        The returned lists are of the form [[(x1_rms,x1_std),(y1_rms,y1_std),(z1_rms,z1_std)],[(x2_rms,x2_std),(y2_rms,y2_std),(z2_rms,z2_std)], ...].
+    """
+    n_year = year
+    n_month = month
+    n_day = day
+
+    ECI_pos_unc = []
+    ECI_vel_unc = []
+    date_list = []
+
+    for _ in range(length):
+        prov1_eph_obj = find_ephem(ephem_list, n_year, n_month, n_day, prov1)
+        try:
+            print("hts:", prov1_eph_obj.name)
+        except:
+            prov1_eph_obj = find_ephem(ephem_list, n_year, n_month, n_day, "mcc")
+            try:
+                print("mcc in place of hts:", prov1_eph_obj.name)
+            except:
+                print("Missed Day")
+                n_year, n_month, n_day = next_day(n_year, n_month, n_day)
+                continue
+
+        prov2_eph_obj = find_ephem(ephem_list, n_year, n_month, n_day, prov2)
+        try:
+            print("sgf:", prov2_eph_obj.name)
+        except:
+            prov2_eph_obj = find_ephem(ephem_list, n_year, n_month, n_day, "mcc")
+            try:
+                print("mcc in place of sgf:", prov2_eph_obj.name)
+            except:
+                print("Missed Day")
+                n_year, n_month, n_day = next_day(n_year, n_month, n_day)
+                continue
+        epoch_unix = calculate_epoch_unix(n_year, n_month, n_day)
+
+        try:
+            dpECI, dvECI = prov_mean_diff_opt_economy(
+                prov1_eph_obj.ephem, prov2_eph_obj.ephem, epoch_unix
+            )
+        except:
+            n_year, n_month, n_day = next_day(n_year, n_month, n_day)
+            continue
+
+        ECI_pos_unc.append(day_stats(dpECI))
+        ECI_vel_unc.append(day_stats(dvECI))
+
+        n_year, n_month, n_day = next_day(n_year, n_month, n_day)
+        single_date_list = [n_year, n_month, n_day]
+        single_date_str = string_date(single_date_list)
+        date_list.append(single_date_str)
+
+        print("checked mean")
+        print("next month:", n_month)
+        print("next day:", n_day)
+
+    return ECI_pos_unc, ECI_vel_unc, date_list
 
 
 def single_prov_diff_opt(
@@ -528,6 +645,41 @@ def single_prov_diff_opt(
     dvRIC = [np.matmul(x[0], x[1]) for x in zip(RTN, dvECI)]
 
     return dpECI, dvECI, dpRIC, dvRIC
+
+
+def single_prov_diff_opt_economy(
+    base_eph: TruthEphemerisManager,
+    secondary_eph: TruthEphemerisManager,
+    epoch_unix: float,
+) -> tuple[List[tuple[float, float]], List[tuple[float, float]],]:
+    """Calculates differences between two ephemerides that belong to the same provider. Optimized to work with list comprehensions.
+
+    Args:
+        base_eph: Ephemeride from the day that the comparison will start,
+        secondary_eph: Ephemeride from the day before the comparison will start (will be extrapolated to the day of comparison),
+        epoch_unix: Time when the comparison will start
+
+    Returns:
+        ECI_pos_unc: list of tuples with rms and std of day uncertainty in position in the ECI frame,
+        ECI_vel_unc: list of tuples with rms and std of day uncertainty in velocity in the ECI frame,
+
+        The returned lists are of the form [[(x1_rms,x1_std),(y1_rms,y1_std),(z1_rms,z1_std)],[(x2_rms,x2_std),(y2_rms,y2_std),(z2_rms,z2_std)], ...].
+    """
+    timestep = 150
+    one_day = 24 * 60 * 60 / timestep
+    timestep_iter = [epoch_unix + i * timestep for i in range(int(one_day))]
+
+    base_pos = [base_eph.position_at_unix_time(x) for x in timestep_iter]
+    secondary_pos = [secondary_eph.position_at_unix_time(x) for x in timestep_iter]
+    base_vel = [base_eph.derived_velocity_at_unix_time(x) for x in timestep_iter]
+    secondary_vel = [
+        secondary_eph.derived_velocity_at_unix_time(x) for x in timestep_iter
+    ]
+
+    dpECI = [(x[0] - x[1]) for x in zip(base_pos, secondary_pos)]
+    dvECI = [(x[0] - x[1]) for x in zip(base_vel, secondary_vel)]
+
+    return dpECI, dvECI
 
 
 def single_prov_diff(
@@ -664,6 +816,69 @@ def compare_single_prov_ephems_over_time(
         date_list.append(single_date_str)
 
     return ECI_pos_unc, ECI_vel_unc, RIC_pos_unc, RIC_vel_unc, date_list
+
+
+def compare_single_prov_ephems_over_time_economy(
+    ephem_list: List[tephem],
+    year: int,
+    month: int,
+    day: int,
+    length: int,
+    prov_list: List[str],
+    preferred_prov: str,
+) -> tuple[List[tuple[float, float]], List[tuple[float, float]], List[str],]:
+    """Function that compares ephemeris objects from the same provider over a certain period of time.
+
+    Args:
+        ephem_list: list of tephem objects
+        year, month, day: the epoch of the start of the comparison study
+        length: the length in days of the comparison study
+        prov1, prov2: file extensions of preferred providers
+
+    Returns:
+        ECI_pos_unc: list of tuples with rms and std of day uncertainty in position in the ECI frame,
+        ECI_vel_unc: list of tuples with rms and std of day uncertainty in velocity in the ECI frame,
+        RIC_pos_unc: list of tuples with rms and std of day uncertainty in position in the RIC frame,
+        RIC_vel_unc: list of tuples with rms and std of day uncertainty in velocity in the RIC frame,
+        date_list: list of dates for which comparison was done.
+
+        The returned lists are of the form [[(x1_rms,x1_std),(y1_rms,y1_std),(z1_rms,z1_std)],[(x2_rms,x2_std),(y2_rms,y2_std),(z2_rms,z2_std)], ...].
+
+    """
+
+    n_year = year
+    n_month = month
+    n_day = day
+
+    ECI_pos_unc = []
+    ECI_vel_unc = []
+    date_list = []
+
+    for _ in range(length):
+        Eb, E1 = fetch_consecutive_ephems(
+            ephem_list, n_year, n_month, n_day, prov_list, preferred_prov
+        )
+        try:
+            Eb.name and E1.name
+        except AttributeError:
+            print("Missing Day")
+            continue  # skip the whole day if one ephemeris is missing
+
+        print("base:", Eb.name)
+        print("one:", E1.name)
+        epoch_unix = calculate_epoch_unix(n_year, n_month, n_day)
+
+        dpECI, dvECI = single_prov_diff_opt_economy(Eb.ephem, E1.ephem, epoch_unix)
+
+        ECI_pos_unc.append(day_stats(dpECI))
+        ECI_vel_unc.append(day_stats(dvECI))
+
+        n_year, n_month, n_day = next_day(n_year, n_month, n_day)
+        single_date_list = [n_year, n_month, n_day]
+        single_date_str = string_date(single_date_list)
+        date_list.append(single_date_str)
+
+    return ECI_pos_unc, ECI_vel_unc, date_list
 
 
 def tephem_factory(directory: str, file: str) -> tephem:
