@@ -49,7 +49,7 @@ def main():
         df = ieu.create_dataframe_from_comparison_output(
             ECI_pos, ECI_vel, RIC_pos, RIC_vel, date_list
         )
-        df.to_csv(outdir + filename, index=False)
+        df.to_csv(str(outdir) + "/" + filename, index=False)
 
 
 if __name__ == "__main__":

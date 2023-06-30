@@ -8,7 +8,7 @@ sys.path.append(str(modules_path))
 import ilrs_error_utilities as ieu
 import truth_request as tr
 
-targets = ["L1471"]
+targets = ["L1471", "L5429", "L3969"]
 # targets = ["L1471", "L5429", "L3972", "L3969", "L2669"]  # single-providers
 # targets = ['L2486','L3059','L4884','L5011','L2682'] # multi-providers
 # targets = ['L5011']
@@ -58,7 +58,7 @@ def main():
         df = ieu.create_dataframe_from_comparison_output_economy(
             ECI_pos, ECI_vel, date_list
         )
-        df.to_csv(str(outdir) + filename, index=False)
+        df.to_csv(str(outdir) + "/" + filename, index=False)
 
 
 if __name__ == "__main__":
