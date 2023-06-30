@@ -8,15 +8,15 @@ sys.path.append(str(modules_path))
 import ilrs_error_utilities as ieu
 import truth_request as tr
 
-targets = ["L1471", "L5429", "L3969"]
-# targets = ["L1471", "L5429", "L3972", "L3969", "L2669"]  # single-providers
+# targets = ["L1471", "L5429", "L3969"]
+targets = ["L1471", "L5429", "L3972", "L3969", "L2669"]  # single-providers
 # targets = ['L2486','L3059','L4884','L5011','L2682'] # multi-providers
 # targets = ['L5011']
 end_epoch = [2023, 6, 15]
 end_year = end_epoch[0]
 end_month = end_epoch[1]
 end_day = end_epoch[2]
-length_of_search = 3
+length_of_search = 365
 prov_list = ["esa", "cne"]
 preferred_prov = "esa"
 outdir = Path("/Users/gkeramidas/Projects/ilrs_uncertainty_estimation/results/")

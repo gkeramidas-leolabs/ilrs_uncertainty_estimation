@@ -9,12 +9,13 @@ import ilrs_error_utilities as ieu
 import truth_request as tr
 
 
-targets = ["L5011"]
+# targets = ["L5011"]
+targets = ["L2486", "L3059", "L4884", "L5011", "L2682"]  # multi-providers
 end_epoch = [2023, 6, 25]
 end_year = end_epoch[0]
 end_month = end_epoch[1]
 end_day = end_epoch[2]
-length_of_search = 2
+length_of_search = 365
 prov1 = "hts"
 prov2 = "sgf"
 outdir = Path("/Users/gkeramidas/Projects/ilrs_uncertainty_estimation/results/")
