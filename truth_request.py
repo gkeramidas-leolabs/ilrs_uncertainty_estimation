@@ -423,12 +423,12 @@ def set_up_truth_directory_for_target(
     """Prepares a local directory for storing ILRS truth files for particular ILRS target."""
     try:
         shutil.rmtree(
-            str(absolute_path_to_truth_dir) + "truth/" + str(leolabs_id)
+            str(absolute_path_to_truth_dir) + "/truth/" + str(leolabs_id)
         )  # Remove target's directory if it already exists
     except FileNotFoundError:
         pass
 
-    base_truth_directory = str(absolute_path_to_truth_dir) + "truth/"
+    base_truth_directory = str(absolute_path_to_truth_dir) + "/truth/"
     try:
         os.mkdir(base_truth_directory)
     except OSError:

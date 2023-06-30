@@ -20,6 +20,7 @@ length_of_search = 3
 prov_list = ["esa", "cne"]
 preferred_prov = "esa"
 outdir = Path("/Users/gkeramidas/Projects/ilrs_uncertainty_estimation/results/")
+truthdir = Path("/Users/gkeramidas/Projects/ilrs_uncertainty_estimation/")
 
 
 def main():
@@ -33,8 +34,8 @@ def main():
         print(base_year, base_month, base_day)
         filename = f"{leolabs_id}-{base_year}-{base_month}-{base_day}-to-{end_year}-{end_month}-{end_day}_economy.csv"
         # sets up directory and downloads relevant data files
-        directory = tr.set_up_truth_directory_for_target(leolabs_id) + "/"
-        tr.dwld_data_for_target(leolabs_id, end_epoch, length_of_search)
+        directory = tr.set_up_truth_directory_for_target(leolabs_id, truthdir) + "/"
+        tr.dwld_data_for_target(leolabs_id, end_epoch, length_of_search, truthdir)
 
         # Initializes tephem objects from directory files
         ephemerides = ieu.truth_ephems_from_directory(directory)

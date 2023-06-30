@@ -10,7 +10,7 @@ import truth_request as tr
 
 
 targets = ["L5011"]
-end_epoch = [2023, 6, 15]
+end_epoch = [2023, 6, 25]
 end_year = end_epoch[0]
 end_month = end_epoch[1]
 end_day = end_epoch[2]
@@ -18,6 +18,7 @@ length_of_search = 2
 prov1 = "hts"
 prov2 = "sgf"
 outdir = Path("/Users/gkeramidas/Projects/ilrs_uncertainty_estimation/results/")
+truthdir = Path("/Users/gkeramidas/Projects/ilrs_uncertainty_estimation/")
 
 
 def main():
@@ -33,8 +34,8 @@ def main():
 
         filename = f"{leolabs_id}-{base_year}-{base_month}-{base_day}-to-{end_year}-{end_month}-{end_day}_economy.csv"
 
-        directory = tr.set_up_truth_directory_for_target(leolabs_id) + "/"
-        tr.dwld_data_for_target(leolabs_id, end_epoch, length_of_search)
+        directory = tr.set_up_truth_directory_for_target(leolabs_id, truthdir) + "/"
+        tr.dwld_data_for_target(leolabs_id, end_epoch, length_of_search, truthdir)
         ephemerides = ieu.truth_ephems_from_directory(directory)
         (
             ECI_pos,
@@ -46,7 +47,7 @@ def main():
         df = ieu.create_dataframe_from_comparison_output_economy(
             ECI_pos, ECI_vel, date_list
         )
-        df.to_csv(str(outdir) + filename, index=False)
+        df.to_csv(str(outdir) + "/" + filename, index=False)
 
 
 if __name__ == "__main__":
