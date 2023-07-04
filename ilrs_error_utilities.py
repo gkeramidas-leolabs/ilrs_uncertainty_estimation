@@ -221,7 +221,7 @@ def get_ephemeris_for_date(
     if len(candidate_ephems) > 1:
         preferred_ephem = get_preferred_ephemeris_type(candidate_ephems, preferred_prov)
         if preferred_prov:
-            return preferred_prov
+            return preferred_ephem
         else:
             return candidate_ephems[0]
 
@@ -795,6 +795,7 @@ def compare_single_prov_ephems_over_time(
             Eb.name and E1.name
         except AttributeError:
             print("Missing Day")
+            n_year, n_month, n_day = next_day(n_year, n_month, n_day)
             continue  # skip the whole day if one ephemeris is missing
 
         print("base:", Eb.name)
@@ -861,6 +862,7 @@ def compare_single_prov_ephems_over_time_economy(
         try:
             Eb.name and E1.name
         except AttributeError:
+            n_year, n_month, n_day = next_day(n_year, n_month, n_day)
             print("Missing Day")
             continue  # skip the whole day if one ephemeris is missing
 
@@ -901,7 +903,6 @@ def truth_ephems_from_directory(directory: str) -> List[tephem]:
     """Puts tephem objects in a list."""
     file_list = os.listdir(directory)
     ephemerides = list(map(lambda x: tephem_factory(directory, x), file_list))
-
     return ephemerides
 
 

@@ -10,7 +10,7 @@ import truth_request as tr
 
 # targets = ["L1471", "L5429", "L3969"]
 targets = ["L1471", "L5429", "L3972", "L3969", "L2669"]  # single-providers
-# targets = ['L2486','L3059','L4884','L5011','L2682'] # multi-providers
+# targets = ['L2486','L3059','L4884','L5011','L2682','L3226'] # multi-providers
 # targets = ['L5011']
 end_epoch = [2023, 6, 15]
 end_year = end_epoch[0]
