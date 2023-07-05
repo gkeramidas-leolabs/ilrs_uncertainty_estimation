@@ -918,7 +918,7 @@ def create_dataframe_from_comparison_output(
         {
             "date": [day for day in date_list],
             "Xrms": [day[0][0] for day in ECI_pos_unc],
-            "Xstd": [day[0][0] for day in ECI_pos_unc],
+            "Xstd": [day[0][1] for day in ECI_pos_unc],
             "Yrms": [day[1][0] for day in ECI_pos_unc],
             "Ystd": [day[1][1] for day in ECI_pos_unc],
             "Zrms": [day[2][0] for day in ECI_pos_unc],
@@ -956,7 +956,7 @@ def create_dataframe_from_comparison_output_economy(
         {
             "date": [day for day in date_list],
             "Xrms": [day[0][0] for day in ECI_pos_unc],
-            "Xstd": [day[0][0] for day in ECI_pos_unc],
+            "Xstd": [day[0][1] for day in ECI_pos_unc],
             "Yrms": [day[1][0] for day in ECI_pos_unc],
             "Ystd": [day[1][1] for day in ECI_pos_unc],
             "Zrms": [day[2][0] for day in ECI_pos_unc],
