@@ -11,3 +11,5 @@ notebooks/**
 textfiles/**
 .env
 results/
+*.ipynb
+nohup.out
