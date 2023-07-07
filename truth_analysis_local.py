@@ -26,7 +26,6 @@ from odlib.od_utils.frame_conversion import eci_to_rtn_rotation_matrix
 from utilities.aws_helper import AwsHelper
 from utilities.api import Api
 from utilities.od_logging import OptionalLog
-
 import error_retrieval as er
 
 # Initialize orekit
@@ -135,10 +134,9 @@ class TruthAnalysis(OptionalLog):
             tzinfo=timezone.utc
         ).timestamp()  # Initial code
 
-        # ilrs_err_vec = er.get_ilrs_uncertainty(self.leolabs_id)
-        ilrs_err_vec = [0, 0, 0, 0, 0, 0]
-        ilrs_pos_err = ilrs_err_vec[0:3]
-        ilrs_vel_err = ilrs_err_vec[3:]
+        ilrs_unc_vec = er.get_ilrs_uncertainty(self.leolabs_id)
+        ilrs_pos_unc = ilrs_unc_vec[0:3]
+        ilrs_vel_unc = ilrs_unc_vec[3:]
 
         eph = self._get_truth_ephemeris_manager()
 
@@ -159,25 +157,21 @@ class TruthAnalysis(OptionalLog):
             ric_dist_vec = np.matmul(
                 eci_to_rtn_rotation_matrix(position, velocity), eme_dist_vec
             )
-            ilrs_ric_pos_err = np.matmul(
-                eci_to_rtn_rotation_matrix(position, velocity), ilrs_pos_err
+            ilrs_ric_pos_unc = np.matmul(
+                eci_to_rtn_rotation_matrix(position, velocity), ilrs_pos_unc
             )
 
             dist = np.linalg.norm(ric_dist_vec)
             dist_list.append(dist)
 
-            ilrs_ric_err0 = ilrs_ric_pos_err[0]
-            ilrs_ric_err1 = ilrs_ric_pos_err[1]
-            ilrs_ric_err2 = ilrs_ric_pos_err[2]
-
             normalized_pos_error_r.append(
-                ric_dist_vec[0] / (np.sqrt(ric_cov[0][0] + ilrs_ric_err0**2))
+                ric_dist_vec[0] / (np.sqrt(ric_cov[0][0] + ilrs_ric_pos_unc[0] ** 2))
             )
             normalized_pos_error_i.append(
-                ric_dist_vec[1] / (np.sqrt(ric_cov[1][1] + ilrs_ric_err1**2))
+                ric_dist_vec[1] / (np.sqrt(ric_cov[1][1] + ilrs_ric_pos_unc[1] ** 2))
             )
             normalized_pos_error_c.append(
-                ric_dist_vec[2] / (np.sqrt(ric_cov[2][2] + ilrs_ric_err2**2))
+                ric_dist_vec[2] / (np.sqrt(ric_cov[2][2] + ilrs_ric_pos_unc[2] ** 2))
             )
 
             # Then velocity
@@ -187,21 +181,21 @@ class TruthAnalysis(OptionalLog):
             ric_spd_vec = np.matmul(
                 eci_to_rtn_rotation_matrix(position, velocity), eme_spd_vec
             )
-            ilrs_ric_spd_err = np.matmul(
-                eci_to_rtn_rotation_matrix(position, velocity), ilrs_vel_err
+            ilrs_ric_spd_unc = np.matmul(
+                eci_to_rtn_rotation_matrix(position, velocity), ilrs_vel_unc
             )
 
             spd = np.linalg.norm(ric_spd_vec)
             spd_list.append(spd)
 
             normalized_vel_error_r.append(
-                ric_spd_vec[0] / (np.sqrt(ric_cov[3][3] + ilrs_ric_spd_err[0] ** 2))
+                ric_spd_vec[0] / (np.sqrt(ric_cov[3][3] + ilrs_ric_spd_unc[0] ** 2))
             )
             normalized_vel_error_i.append(
-                ric_spd_vec[1] / (np.sqrt(ric_cov[4][4] + ilrs_ric_spd_err[1] ** 2))
+                ric_spd_vec[1] / (np.sqrt(ric_cov[4][4] + ilrs_ric_spd_unc[1] ** 2))
             )
             normalized_vel_error_c.append(
-                ric_spd_vec[2] / (np.sqrt(ric_cov[5][5] + ilrs_ric_spd_err[2] ** 2))
+                ric_spd_vec[2] / (np.sqrt(ric_cov[5][5] + ilrs_ric_spd_unc[2] ** 2))
             )
 
             time_list.append(t)
