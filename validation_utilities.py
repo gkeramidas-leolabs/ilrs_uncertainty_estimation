@@ -60,21 +60,23 @@ def prop_url(row: Series) -> str:
     return propagation_url
 
 
-def handle_propagation_response(response: Dict[str, Any]) -> Series:
+def handle_propagation_response(
+    eme_response: Dict[str, Any], ric_response: Dict[str, Any]
+) -> Series:
     """Function that takes the response from a propagation request and returns the state variables"""
-    state_pos = response["propagation"][0]["position"]
-    state_vel = response["propagation"][0]["velocity"]
-    state_cov = response["propagation"][0]["covariance"]
+    state_pos = eme_response["propagation"][0]["position"]
+    state_vel = eme_response["propagation"][0]["velocity"]
+    ric_cov = ric_response["propagation"][0]["covariance"]
 
     return pd.Series(
         {
-            "X_prop": state_pos[0],
-            "Y_prop": state_pos[1],
-            "Z_prop": state_pos[2],
-            "Vx_prop": state_vel[0],
-            "Vy_prop": state_vel[1],
-            "Vz_prop": state_vel[2],
-            "Cov_prop": state_cov,
+            "X_pr": state_pos[0],
+            "Y_pr": state_pos[1],
+            "Z_pr": state_pos[2],
+            "Vx_pr": state_vel[0],
+            "Vy_pr": state_vel[1],
+            "Vz_pr": state_vel[2],
+            "ric_scC_pr": ric_cov,
         }
     )
 
@@ -83,19 +85,31 @@ def make_columns_from_propagations(row: Series) -> Series:
     """Function that takes a row from the dataframe, calls the propagation API and handles the response
     to create new columns
     """
-    response = requests.get(prop_url(row), headers=auth.headers)
-    return handle_propagation_response(response.json())
+    eme_url = prop_url(row)
+    ric_url = eme_url + "&frame=RIC"
+
+    eme_response = requests.get(eme_url, headers=auth.headers)
+    ric_response = requests.get(ric_url, headers=auth.headers)
+
+    return handle_propagation_response(eme_response.json(), ric_response.json())
 
 
 async def make_columns_from_propagations_async(row: Series) -> Series:
     """Function that takes a row from the dataframe, calls the propagation API and handles the response
     to create new columns (asynchronous)
     """
-    async with aiohttp.ClientSession() as session:
-        async with session.get(prop_url(row), headers=auth.headers) as response:
-            response_data = await response.json()
+    eme_url = prop_url(row)
+    ric_url = eme_url + "&frame=RIC"
 
-    return handle_propagation_response(response_data)
+    async with aiohttp.ClientSession() as session:
+        async with session.get(eme_url(row), headers=auth.headers) as eme_response:
+            eme_response_data = await eme_response.json()
+
+    async with aiohttp.ClientSession() as session:
+        async with session.get(ric_url(row), headers=auth.headers) as ric_response:
+            ric_response_data = await ric_response.json()
+
+    return handle_propagation_response(eme_response_data, ric_response_data)
 
 
 async def create_propagations_df(df: pd.DataFrame) -> pd.DataFrame:
