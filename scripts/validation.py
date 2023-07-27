@@ -41,7 +41,13 @@ df1 = pd.concat([df1, descaled_column], axis=1)
 radar_columns_df = df1.apply(vu.radar_coordinates_columns, axis=1)
 df1 = pd.concat([df1, radar_columns_df], axis=1)
 
-# Calculate residuals and compare to the original ones
+# Calculate residuals and compare to the original ones/ Optional step just for debugging
 calculated_residuals_df = df1.apply(vu.calculate_residuals, axis=1)
 print(calculated_residuals_df.head())
 print(df1[["range_res", "doppler_res"]].head())
+
+# Project the originally scaled covariance in measurement space and attach it to the dataframe
+projected_scaled_cov_df = df1.apply(
+    vu.project_scaled_covariance_to_measurements_space, axis=1
+)
+df1 = pd.concat([df1, projected_scaled_cov_df], axis=1)

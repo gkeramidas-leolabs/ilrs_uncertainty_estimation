@@ -274,3 +274,54 @@ def calculate_residuals(row: Series):
             "doppler_meas": doppler_meas,
         }
     )
+
+
+def project_scaled_covariance_to_measurements_space(row: Series) -> Series:
+    """Takes a row from the matrix containing the radar coordinates and projects
+    the scaled covariance matrix to the measurements space.
+    """
+    rad_vec = np.array(
+        [
+            row["X_radar"],
+            row["Y_radar"],
+            row["Z_radar"],
+            row["Vx_radar"],
+            row["Vy_radar"],
+            row["Vz_radar"],
+        ]
+    )
+    sat_vec = np.array(
+        [
+            row["X_pr"],
+            row["Y_pr"],
+            row["Z_pr"],
+            row["Vx_pr"],
+            row["Vy_pr"],
+            row["Vz_pr"],
+        ]
+    )
+    C = np.array(row["eme_scC_pr"])
+
+    x_rel = sat_vec - rad_vec
+
+    # Predicted range
+    range_pred = np.linalg.norm(x_rel[0:3])
+    # Predicted doppler
+    doppler_pred = np.dot(x_rel[0:3], x_rel[3:6]) / range_pred
+
+    # Compute h matrix (Jacobian, maps state space to observation space)
+    h = np.zeros((2, 6))
+    h[0, 0:3] = x_rel[:3] / range_pred
+    h[1, 0] = x_rel[3] / range_pred - x_rel[0] * doppler_pred / range_pred**2
+    h[1, 1] = x_rel[4] / range_pred - x_rel[1] * doppler_pred / range_pred**2
+    h[1, 2] = x_rel[5] / range_pred - x_rel[2] * doppler_pred / range_pred**2
+    h[1, 3:6] = h[0, 0:3]
+
+    # Compute innovation covariance for range and doppler
+    S = np.matmul(np.matmul(h, C), h.T)
+
+    return pd.Series(
+        {
+            "S_sc": S,
+        }
+    )
