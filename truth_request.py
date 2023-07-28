@@ -63,10 +63,10 @@ async def async_id_data(leo_id: str) -> Dict[str, Any]:
     return id_dict
 
 
-def propagation_dates_from_epoch(epoch: List[int]) -> tuple[str, str]:
-    """Function handed an epoch (as a list) and returning start and end days, 1 day away from epoch"""
+def propagation_dates_from_epoch(epoch_in_dt: datetime.datetime) -> tuple[str, str]:
+    """Function handed an epoch (as a datetime) and returning start and end days, 1 day away from epoch"""
 
-    epoch_in_dt = datetime.datetime(*epoch, tzinfo=None)
+    # epoch_in_dt = datetime.datetime(*epoch, tzinfo=None)
     start_time = epoch_in_dt - timedelta(
         seconds=86399
     )  # start of propagations is 1 day before epoch
@@ -523,10 +523,15 @@ def dwld_data_for_target(
     download_truth_files(trth_flnms, trth_dir)  # download all files
 
 
-def dwld_data_for_all_targets(target_list: List[str], epoch: List[int], num_days: int):
+def dwld_data_for_all_targets(
+    target_list: List[str],
+    epoch: List[int],
+    num_days: int,
+    absolute_path_to_truth_dir: Path,
+):
     """Downloads data for all targets."""
     for target in target_list:
-        dwld_data_for_target(target, epoch, num_days)
+        dwld_data_for_target(target, epoch, num_days, absolute_path_to_truth_dir)
 
 
 def collect_all_states(
@@ -549,7 +554,10 @@ def collect_all_states(
 
 def state_error(
     object_id: str, state_id: str, epoch: List[int], timestep=150, plotting=False
-) -> Union[tuple[float, float, float, float], tuple[None, None, None, None]]:
+) -> Union[
+    tuple[float, float, float, float, float, float, float],
+    tuple[None, None, None, None, None, None, None],
+]:
     """Creates a truth object from a state and runs truth analysis on it, returning the errors."""
     # Initializing object
     id_data_TO = id_data(object_id)  # Id data of a truth object
@@ -581,6 +589,9 @@ def state_error(
         r_err = extract_norm_error(norm_errors_dict, 0)  # parse position errors
         i_err = extract_norm_error(norm_errors_dict, 1)
         c_err = extract_norm_error(norm_errors_dict, 2)
+        Vr_err = extract_norm_error(norm_errors_dict, 3)
+        Vi_err = extract_norm_error(norm_errors_dict, 4)
+        Vc_err = extract_norm_error(norm_errors_dict, 5)
 
         if plotting:
             plt.figure(figsize=(8, 8))
@@ -592,9 +603,9 @@ def state_error(
             plt.xlabel("Seconds from estimation epoch")
             plt.ylabel("Error")
             plt.show()
-        return epoch_Offset, r_err, i_err, c_err
+        return epoch_Offset, r_err, i_err, c_err, Vr_err, Vi_err, Vc_err
     except ValueError:
-        return None, None, None, None
+        return None, None, None, None, None, None, None
 
 
 async def async_state_requests(
@@ -676,7 +687,7 @@ def collections_of_truth_state_errors(
     ):  # perform truth analysis on each state and store the errors
         obj_id = state_array[i][0]
         state_id = state_array[i][1]
-        timestamp = state_array[i][2]
+        timestamp = date_parse(state_array[i][2])
 
         epoch_Offset, r_err, i_err, c_err, Vr_err, Vi_err, Vc_err = state_error(
             obj_id, state_id, timestamp
